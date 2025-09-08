@@ -6,6 +6,7 @@ Provides administrative functionality for managing courses, users, and bot setti
 import discord
 from discord.ext import commands
 from discord.ui import Modal, TextInput, View, Button
+from discord import app_commands
 import json
 from database import db
 from achievements import achievement_manager
@@ -157,7 +158,7 @@ class AdminView(View):
         
         embed = discord.Embed(
             title="🏆 Award Achievement",
-            description="Use the command `!admin award @user achievement_name` to award achievements manually.",
+            description="Use the command `/admin_award @user achievement_name` to award achievements manually.",
             color=0xFFD700
         )
         
@@ -174,16 +175,16 @@ class AdminCommands(commands.Cog):
         self.bot = bot
         self.db = db
     
-    @commands.command(name="admin")
-    async def admin_panel(self, ctx):
+    @discord.app_commands.command(name="admin", description="Open the admin control panel")
+    async def admin_panel(self, interaction: discord.Interaction):
         """Open the admin control panel"""
-        if not is_admin(ctx.author.id):
+        if not is_admin(interaction.user.id):
             embed = discord.Embed(
                 title="❌ Access Denied",
                 description="You don't have permission to use admin commands.",
                 color=0xFF0000
             )
-            await ctx.send(embed=embed)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
             return
         
         embed = discord.Embed(
@@ -193,13 +194,13 @@ class AdminCommands(commands.Cog):
         )
         
         view = AdminView()
-        await ctx.send(embed=embed, view=view)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
     
-    @commands.command(name="admin_award")
-    async def award_achievement(self, ctx, user: discord.Member, *, achievement_name: str):
+    @app_commands.command(name="admin_award", description="Award an achievement to a user")
+    async def award_achievement(self, interaction: discord.Interaction, user: discord.Member, achievement_name: str):
         """Award an achievement to a user"""
-        if not is_admin(ctx.author.id):
-            await ctx.send("❌ Admin access required.")
+        if not is_admin(interaction.user.id):
+            await interaction.response.send_message("❌ Admin access required.", ephemeral=True)
             return
         
         # Add user to database if not exists
@@ -220,7 +221,7 @@ class AdminCommands(commands.Cog):
             
             embed.add_field(name="Bonus XP", value="+300 XP", inline=True)
             
-            await ctx.send(embed=embed)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
             
             # Send DM to user
             try:
@@ -236,17 +237,17 @@ class AdminCommands(commands.Cog):
             except:
                 pass  # User might have DMs disabled
         else:
-            await ctx.send(f"❌ {user.display_name} already has this achievement or there was an error.")
+            await interaction.response.send_message(f"❌ {user.display_name} already has this achievement or there was an error.", ephemeral=True)
     
-    @commands.command(name="admin_xp")
-    async def award_xp(self, ctx, user: discord.Member, amount: int):
+    @app_commands.command(name="admin_xp", description="Award XP to a user")
+    async def award_xp(self, interaction: discord.Interaction, user: discord.Member, amount: int):
         """Award XP to a user"""
-        if not is_admin(ctx.author.id):
-            await ctx.send("❌ Admin access required.")
+        if not is_admin(interaction.user.id):
+            await interaction.response.send_message("❌ Admin access required.", ephemeral=True)
             return
         
         if amount <= 0 or amount > 10000:
-            await ctx.send("❌ XP amount must be between 1 and 10,000.")
+            await interaction.response.send_message("❌ XP amount must be between 1 and 10,000.", ephemeral=True)
             return
         
         # Add user to database if not exists
@@ -263,7 +264,7 @@ class AdminCommands(commands.Cog):
         
         embed.add_field(name="New Total XP", value=f"{new_xp:,} XP", inline=True)
         
-        await ctx.send(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
         
         # Check for new achievements
         new_achievements = achievement_manager.check_and_award_achievements(user.id)
@@ -274,13 +275,13 @@ class AdminCommands(commands.Cog):
                 description=achievement_text,
                 color=0xFFD700
             )
-            await ctx.send(embed=follow_up)
+            await interaction.followup.send(embed=follow_up, ephemeral=True)
     
-    @commands.command(name="admin_reset")
-    async def reset_user(self, ctx, user: discord.Member):
+    @app_commands.command(name="admin_reset", description="Reset a user's progress (use with caution!)")
+    async def reset_user(self, interaction: discord.Interaction, user: discord.Member):
         """Reset a user's progress (use with caution!)"""
-        if not is_admin(ctx.author.id):
-            await ctx.send("❌ Admin access required.")
+        if not is_admin(interaction.user.id):
+            await interaction.response.send_message("❌ Admin access required.", ephemeral=True)
             return
         
         # Confirmation check
@@ -293,9 +294,9 @@ class AdminCommands(commands.Cog):
         # Add confirmation buttons
         view = View(timeout=30)
         
-        async def confirm_reset(interaction):
-            if interaction.user.id != ctx.author.id:
-                await interaction.response.send_message("❌ Only the command user can confirm.", ephemeral=True)
+        async def confirm_reset(button_interaction):
+            if button_interaction.user.id != interaction.user.id:
+                await button_interaction.response.send_message("❌ Only the command user can confirm.", ephemeral=True)
                 return
             
             conn = self.db.get_connection()
@@ -315,7 +316,7 @@ class AdminCommands(commands.Cog):
                     color=0x00FF00
                 )
                 
-                await interaction.response.edit_message(embed=reset_embed, view=None)
+                await button_interaction.response.edit_message(embed=reset_embed, view=None)
                 
             except Exception as e:
                 error_embed = discord.Embed(
@@ -323,13 +324,13 @@ class AdminCommands(commands.Cog):
                     description=f"Error resetting user: {e}",
                     color=0xFF0000
                 )
-                await interaction.response.edit_message(embed=error_embed, view=None)
+                await button_interaction.response.edit_message(embed=error_embed, view=None)
             finally:
                 conn.close()
         
-        async def cancel_reset(interaction):
-            if interaction.user.id != ctx.author.id:
-                await interaction.response.send_message("❌ Only the command user can cancel.", ephemeral=True)
+        async def cancel_reset(button_interaction):
+            if button_interaction.user.id != interaction.user.id:
+                await button_interaction.response.send_message("❌ Only the command user can cancel.", ephemeral=True)
                 return
             
             cancel_embed = discord.Embed(
@@ -337,7 +338,7 @@ class AdminCommands(commands.Cog):
                 description="User reset has been cancelled.",
                 color=0x999999
             )
-            await interaction.response.edit_message(embed=cancel_embed, view=None)
+            await button_interaction.response.edit_message(embed=cancel_embed, view=None)
         
         confirm_button = Button(label="✅ Confirm Reset", style=discord.ButtonStyle.danger)
         cancel_button = Button(label="❌ Cancel", style=discord.ButtonStyle.secondary)
@@ -348,13 +349,13 @@ class AdminCommands(commands.Cog):
         view.add_item(confirm_button)
         view.add_item(cancel_button)
         
-        await ctx.send(embed=embed, view=view)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
     
-    @commands.command(name="admin_backup")
-    async def backup_data(self, ctx):
+    @app_commands.command(name="admin_backup", description="Create a backup of user data")
+    async def backup_data(self, interaction: discord.Interaction):
         """Create a backup of user data"""
-        if not is_admin(ctx.author.id):
-            await ctx.send("❌ Admin access required.")
+        if not is_admin(interaction.user.id):
+            await interaction.response.send_message("❌ Admin access required.", ephemeral=True)
             return
         
         try:
@@ -397,7 +398,7 @@ class AdminCommands(commands.Cog):
                           value=f"• Users: {len(users)}\n• Achievements: {len(achievements)}\n• Progress: {len(progress)}\n• Quiz Attempts: {len(quizzes)}", 
                           inline=False)
             
-            await ctx.send(embed=embed, file=discord.File("backup.json"))
+            await interaction.response.send_message(embed=embed, file=discord.File("backup.json"), ephemeral=True)
             
         except Exception as e:
             embed = discord.Embed(
@@ -405,7 +406,7 @@ class AdminCommands(commands.Cog):
                 description=f"Error creating backup: {e}",
                 color=0xFF0000
             )
-            await ctx.send(embed=embed)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
         finally:
             conn.close()
 
