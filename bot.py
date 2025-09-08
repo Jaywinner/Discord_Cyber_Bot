@@ -20,6 +20,8 @@ from courses import get_course, get_lesson, get_next_lesson, get_course_list, ge
 from achievements import achievement_manager
 from quiz import quiz_manager
 from admin import AdminCommands
+from ctf import ctf_manager, CTFChallengeView
+from multimedia import multimedia_manager
 
 # Bot configuration
 PREFIX = "!"
@@ -773,6 +775,18 @@ async def help_command(interaction: discord.Interaction):
     )
     
     embed.add_field(
+        name="🚩 Advanced Features",
+        value="`/ctf` - CTF challenges (500+ XP required)\n`/ctf_leaderboard` - CTF rankings\n`/multimedia [type]` - Interactive content\n`/xp_gates` - View feature unlock requirements",
+        inline=False
+    )
+    
+    embed.add_field(
+        name="🎬 Multimedia Content",
+        value="`/multimedia phishing` - Phishing detection training\n`/multimedia passwords` - Password security visuals\n`/multimedia network` - Network diagrams",
+        inline=False
+    )
+    
+    embed.add_field(
         name="🛠️ Admin Commands",
         value="`/admin` - Admin control panel (admins only)\n`/admin_award @user achievement` - Award achievement\n`/admin_xp @user amount` - Award XP",
         inline=False
@@ -791,6 +805,181 @@ async def setup_hook():
     await setup_cogs()
 
 # Error handling
+# CTF Commands
+@bot.tree.command(name="ctf", description="🚩 Access CTF (Capture The Flag) challenges")
+async def ctf_command(interaction: discord.Interaction, challenge_id: int = None):
+    """CTF challenge system for advanced users"""
+    user_id = interaction.user.id
+    
+    # Register user if not exists
+    db.add_user(user_id, interaction.user.display_name)
+    
+    # Get user stats to check XP requirements
+    user_stats = db.get_user_stats(user_id)
+    if not user_stats:
+        await interaction.response.send_message("❌ Error getting user data.", ephemeral=True)
+        return
+    
+    username, xp, level, current_course, current_module, current_lesson = user_stats
+    
+    if challenge_id:
+        # Show specific challenge
+        challenges = ctf_manager.get_available_challenges(xp)
+        challenge = next((c for c in challenges if c[0] == challenge_id), None)
+        
+        if not challenge:
+            embed = discord.Embed(
+                title="❌ Challenge Not Available",
+                description="This challenge doesn't exist or you don't have enough XP to access it.",
+                color=0xFF0000
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+        
+        embed, challenge_data = ctf_manager.create_challenge_embed(challenge)
+        view = CTFChallengeView(challenge_data, user_id)
+        await interaction.response.send_message(embed=embed, view=view)
+    
+    else:
+        # Show available challenges
+        challenges = ctf_manager.get_available_challenges(xp)
+        
+        if not challenges:
+            embed = discord.Embed(
+                title="🚩 CTF Challenges",
+                description=f"No challenges available yet. You need at least 500 XP to access CTF challenges.\n\nYour current XP: **{xp}**",
+                color=0xFF8000
+            )
+            embed.add_field(
+                name="How to unlock CTF challenges",
+                value="• Complete more lessons to earn XP\n• Take quizzes to boost your score\n• CTF challenges unlock at different XP levels",
+                inline=False
+            )
+            await interaction.response.send_message(embed=embed)
+            return
+        
+        embed = discord.Embed(
+            title="🚩 Available CTF Challenges",
+            description=f"Choose a challenge to test your skills! Your XP: **{xp}**",
+            color=0x0099FF
+        )
+        
+        challenge_list = ""
+        for challenge_id, name, category, difficulty, points, description, required_xp in challenges[:10]:
+            challenge_list += f"**{challenge_id}.** {name}\n"
+            challenge_list += f"   📂 {category.title()} • {difficulty} • {points} XP\n"
+            challenge_list += f"   *{description[:60]}...*\n\n"
+        
+        embed.add_field(
+            name="Challenges",
+            value=challenge_list,
+            inline=False
+        )
+        
+        embed.add_field(
+            name="How to start",
+            value="Use `/ctf <challenge_id>` to start a specific challenge",
+            inline=False
+        )
+        
+        await interaction.response.send_message(embed=embed)
+
+@bot.tree.command(name="ctf_leaderboard", description="🏆 View CTF challenge leaderboard")
+async def ctf_leaderboard_command(interaction: discord.Interaction):
+    """Show CTF leaderboard"""
+    embed = ctf_manager.create_leaderboard_embed()
+    await interaction.response.send_message(embed=embed)
+
+@bot.tree.command(name="multimedia", description="🎬 Access interactive multimedia content")
+async def multimedia_command(interaction: discord.Interaction, content_type: str = "phishing"):
+    """Access multimedia learning content"""
+    user_id = interaction.user.id
+    
+    # Register user if not exists
+    db.add_user(user_id, interaction.user.display_name)
+    
+    valid_types = ["phishing", "passwords", "network", "malware", "videos", "audio"]
+    if content_type not in valid_types:
+        embed = discord.Embed(
+            title="❌ Invalid Content Type",
+            description=f"Available content types: {', '.join(valid_types)}",
+            color=0xFF0000
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        return
+    
+    embed, view = multimedia_manager.create_multimedia_embed(content_type, user_id)
+    
+    if view:
+        await interaction.response.send_message(embed=embed, view=view)
+    else:
+        await interaction.response.send_message(embed=embed)
+
+@bot.tree.command(name="xp_gates", description="🔒 View XP requirements for unlocking features")
+async def xp_gates_command(interaction: discord.Interaction):
+    """Show XP requirements for different features"""
+    user_id = interaction.user.id
+    
+    # Register user if not exists
+    db.add_user(user_id, interaction.user.display_name)
+    
+    # Get user stats
+    user_stats = db.get_user_stats(user_id)
+    if not user_stats:
+        await interaction.response.send_message("❌ Error getting user data.", ephemeral=True)
+        return
+    
+    username, xp, level, current_course, current_module, current_lesson = user_stats
+    
+    embed = discord.Embed(
+        title="🔒 XP Gates & Feature Unlocks",
+        description=f"Your current XP: **{xp:,}** • Level **{level}**",
+        color=0x0099FF
+    )
+    
+    # Define XP gates
+    xp_gates = [
+        (0, "🚀 Basic Learning", "Access to all basic courses and lessons"),
+        (500, "🚩 CTF Challenges", "Access to beginner CTF challenges"),
+        (1000, "🎬 Advanced Multimedia", "Access to advanced interactive content"),
+        (1500, "🏆 Expert CTF", "Access to expert-level CTF challenges"),
+        (2500, "👑 Master Content", "Access to master-level courses and challenges"),
+        (5000, "💎 Elite Features", "Access to exclusive elite content"),
+        (10000, "⚡ Legend Status", "All features unlocked + special privileges")
+    ]
+    
+    unlocked = []
+    locked = []
+    
+    for required_xp, feature, description in xp_gates:
+        if xp >= required_xp:
+            unlocked.append(f"✅ **{feature}** - {description}")
+        else:
+            remaining = required_xp - xp
+            locked.append(f"🔒 **{feature}** - {description}\n   *Need {remaining:,} more XP*")
+    
+    if unlocked:
+        embed.add_field(
+            name="🔓 Unlocked Features",
+            value="\n\n".join(unlocked),
+            inline=False
+        )
+    
+    if locked:
+        embed.add_field(
+            name="🔒 Locked Features",
+            value="\n\n".join(locked),
+            inline=False
+        )
+    
+    embed.add_field(
+        name="💡 How to Earn XP",
+        value="• Complete lessons (+100-250 XP)\n• Take quizzes (+50-150 XP)\n• Solve CTF challenges (+100-600 XP)\n• Earn achievements (bonus XP)",
+        inline=False
+    )
+    
+    await interaction.response.send_message(embed=embed)
+
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.CommandNotFound):

@@ -131,6 +131,68 @@ ACHIEVEMENTS = {
         "xp_bonus": 350
     },
     
+    # CTF achievements
+    "ctf_beginner": {
+        "name": "🚩 CTF Beginner",
+        "description": "Solve your first CTF challenge",
+        "type": "ctf_solve",
+        "requirement": 1,
+        "xp_bonus": 200
+    },
+    "ctf_solver": {
+        "name": "🔍 CTF Solver",
+        "description": "Solve 5 CTF challenges",
+        "type": "ctf_solve",
+        "requirement": 5,
+        "xp_bonus": 400
+    },
+    "ctf_expert": {
+        "name": "🏆 CTF Expert",
+        "description": "Solve 15 CTF challenges",
+        "type": "ctf_solve",
+        "requirement": 15,
+        "xp_bonus": 800
+    },
+    "ctf_master": {
+        "name": "👑 CTF Master",
+        "description": "Solve 30 CTF challenges",
+        "type": "ctf_solve",
+        "requirement": 30,
+        "xp_bonus": 1500
+    },
+    
+    # Multimedia interaction achievements
+    "visual_learner": {
+        "name": "👁️ Visual Learner",
+        "description": "Complete 10 interactive visual exercises",
+        "type": "multimedia_interaction",
+        "requirement": 10,
+        "xp_bonus": 300
+    },
+    "phishing_detective": {
+        "name": "🕵️ Phishing Detective",
+        "description": "Correctly identify 20 phishing emails",
+        "type": "phishing_quiz",
+        "requirement": 20,
+        "xp_bonus": 500
+    },
+    
+    # Advanced XP achievements
+    "xp_legend": {
+        "name": "⚡ XP Legend",
+        "description": "Earn 10,000 XP",
+        "type": "xp_milestone",
+        "requirement": 10000,
+        "xp_bonus": 1000
+    },
+    "xp_grandmaster": {
+        "name": "💎 XP Grandmaster",
+        "description": "Earn 25,000 XP",
+        "type": "xp_milestone",
+        "requirement": 25000,
+        "xp_bonus": 2500
+    },
+    
     # Special achievements
     "early_adopter": {
         "name": "🌟 Early Adopter",
@@ -145,6 +207,13 @@ ACHIEVEMENTS = {
         "type": "special", 
         "requirement": 1,
         "xp_bonus": 300
+    },
+    "multimedia_master": {
+        "name": "🎬 Multimedia Master",
+        "description": "Engage with all types of multimedia content",
+        "type": "special",
+        "requirement": 1,
+        "xp_bonus": 400
     }
 }
 
@@ -197,6 +266,24 @@ class AchievementManager:
             elif achievement["type"] == "perfect_quiz":
                 perfect_quizzes = self._count_perfect_quizzes(user_id)
                 if perfect_quizzes >= achievement["requirement"]:
+                    earned = True
+            
+            # Check CTF solves
+            elif achievement["type"] == "ctf_solve":
+                ctf_solves = self._count_ctf_solves(user_id)
+                if ctf_solves >= achievement["requirement"]:
+                    earned = True
+            
+            # Check multimedia interactions
+            elif achievement["type"] == "multimedia_interaction":
+                multimedia_interactions = self._count_multimedia_interactions(user_id)
+                if multimedia_interactions >= achievement["requirement"]:
+                    earned = True
+            
+            # Check phishing quiz performance
+            elif achievement["type"] == "phishing_quiz":
+                phishing_correct = self._count_phishing_quiz_correct(user_id)
+                if phishing_correct >= achievement["requirement"]:
                     earned = True
             
             # Award achievement if earned
@@ -277,6 +364,75 @@ class AchievementManager:
         finally:
             conn.close()
     
+    def _count_ctf_solves(self, user_id: int) -> int:
+        """Count CTF challenges solved by user"""
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("""
+                SELECT COUNT(DISTINCT challenge_id) FROM ctf_submissions 
+                WHERE user_id = ? AND is_correct = 1
+            """, (user_id,))
+            result = cursor.fetchone()
+            return result[0] if result else 0
+        except Exception as e:
+            print(f"Error counting CTF solves: {e}")
+            return 0
+        finally:
+            conn.close()
+    
+    def _count_multimedia_interactions(self, user_id: int) -> int:
+        """Count multimedia interactions by user"""
+        # For now, we'll track this through a separate table or estimate based on activity
+        # This is a placeholder - in a real implementation, you'd track multimedia interactions
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Estimate based on lesson completions and quiz attempts
+            cursor.execute("""
+                SELECT COUNT(*) FROM course_progress 
+                WHERE user_id = ? AND completed = TRUE
+            """, (user_id,))
+            lessons = cursor.fetchone()[0] if cursor.fetchone() else 0
+            
+            cursor.execute("""
+                SELECT COUNT(*) FROM quiz_attempts 
+                WHERE user_id = ?
+            """, (user_id,))
+            quizzes = cursor.fetchone()[0] if cursor.fetchone() else 0
+            
+            # Estimate multimedia interactions as lessons + quizzes (rough approximation)
+            return lessons + quizzes
+        except Exception as e:
+            print(f"Error counting multimedia interactions: {e}")
+            return 0
+        finally:
+            conn.close()
+    
+    def _count_phishing_quiz_correct(self, user_id: int) -> int:
+        """Count correct phishing quiz answers"""
+        # This would be tracked in a separate phishing_quiz_attempts table
+        # For now, we'll use a placeholder implementation
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Placeholder: estimate based on quiz performance
+            cursor.execute("""
+                SELECT COUNT(*) FROM quiz_attempts 
+                WHERE user_id = ? AND score = total_questions
+            """, (user_id,))
+            result = cursor.fetchone()
+            # Estimate phishing quiz performance as a portion of perfect quiz scores
+            return (result[0] * 2) if result else 0  # Rough estimate
+        except Exception as e:
+            print(f"Error counting phishing quiz correct: {e}")
+            return 0
+        finally:
+            conn.close()
+    
     def get_user_achievement_summary(self, user_id: int) -> dict:
         """Get comprehensive achievement summary for user"""
         achievements = self.db.get_user_achievements(user_id)
@@ -294,6 +450,9 @@ class AchievementManager:
             "course_completion": [],
             "perfect_quiz": [],
             "daily_streak": [],
+            "ctf_solve": [],
+            "multimedia_interaction": [],
+            "phishing_quiz": [],
             "special": []
         }
         
@@ -367,6 +526,9 @@ class AchievementManager:
             "course_completion": "🎓 Course Completions",
             "perfect_quiz": "🎯 Quiz Mastery",
             "daily_streak": "🔥 Dedication",
+            "ctf_solve": "🚩 CTF Challenges",
+            "multimedia_interaction": "🎬 Interactive Learning",
+            "phishing_quiz": "🕵️ Phishing Detection",
             "special": "🌟 Special"
         }
         

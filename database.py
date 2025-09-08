@@ -71,6 +71,50 @@ class DatabaseManager:
             )
         """)
         
+        # CTF challenges table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ctf_challenges (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                challenge_name TEXT UNIQUE,
+                category TEXT,
+                difficulty TEXT,
+                points INTEGER,
+                description TEXT,
+                flag TEXT,
+                hints TEXT,
+                required_xp INTEGER DEFAULT 0,
+                created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # CTF submissions table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS ctf_submissions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                challenge_id INTEGER,
+                submitted_flag TEXT,
+                is_correct BOOLEAN,
+                submission_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (user_id),
+                FOREIGN KEY (challenge_id) REFERENCES ctf_challenges (id)
+            )
+        """)
+        
+        # Multimedia content table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS multimedia_content (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                content_type TEXT, -- 'image', 'video', 'audio'
+                content_url TEXT,
+                content_description TEXT,
+                course_id INTEGER,
+                module_id INTEGER,
+                lesson_id INTEGER,
+                created_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
         conn.commit()
         conn.close()
     
@@ -315,6 +359,139 @@ class DatabaseManager:
             conn.commit()
         except Exception as e:
             print(f"Error recording quiz attempt: {e}")
+        finally:
+            conn.close()
+    
+    # CTF Challenge Methods
+    def add_ctf_challenge(self, name: str, category: str, difficulty: str, points: int, 
+                         description: str, flag: str, hints: str = "", required_xp: int = 0):
+        """Add a new CTF challenge"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("""
+                INSERT INTO ctf_challenges 
+                (challenge_name, category, difficulty, points, description, flag, hints, required_xp)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (name, category, difficulty, points, description, flag, hints, required_xp))
+            conn.commit()
+            return True
+        except Exception as e:
+            print(f"Error adding CTF challenge: {e}")
+            return False
+        finally:
+            conn.close()
+    
+    def get_ctf_challenges(self, user_xp: int = 0):
+        """Get available CTF challenges based on user XP"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("""
+                SELECT id, challenge_name, category, difficulty, points, description, required_xp
+                FROM ctf_challenges 
+                WHERE required_xp <= ?
+                ORDER BY difficulty, points
+            """, (user_xp,))
+            return cursor.fetchall()
+        except Exception as e:
+            print(f"Error getting CTF challenges: {e}")
+            return []
+        finally:
+            conn.close()
+    
+    def submit_ctf_flag(self, user_id: int, challenge_id: int, submitted_flag: str):
+        """Submit a CTF flag and check if correct"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Get the correct flag
+            cursor.execute("SELECT flag, points FROM ctf_challenges WHERE id = ?", (challenge_id,))
+            result = cursor.fetchone()
+            
+            if not result:
+                return False, "Challenge not found"
+            
+            correct_flag, points = result
+            is_correct = submitted_flag.strip() == correct_flag.strip()
+            
+            # Record the submission
+            cursor.execute("""
+                INSERT INTO ctf_submissions (user_id, challenge_id, submitted_flag, is_correct)
+                VALUES (?, ?, ?, ?)
+            """, (user_id, challenge_id, submitted_flag, is_correct))
+            
+            # If correct, award points
+            if is_correct:
+                self.add_xp(user_id, points)
+            
+            conn.commit()
+            return is_correct, points if is_correct else 0
+        except Exception as e:
+            print(f"Error submitting CTF flag: {e}")
+            return False, "Error processing submission"
+        finally:
+            conn.close()
+    
+    def get_user_ctf_progress(self, user_id: int):
+        """Get user's CTF challenge progress"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("""
+                SELECT c.challenge_name, c.points, s.is_correct, s.submission_date
+                FROM ctf_submissions s
+                JOIN ctf_challenges c ON s.challenge_id = c.id
+                WHERE s.user_id = ? AND s.is_correct = 1
+                ORDER BY s.submission_date DESC
+            """, (user_id,))
+            return cursor.fetchall()
+        except Exception as e:
+            print(f"Error getting CTF progress: {e}")
+            return []
+        finally:
+            conn.close()
+    
+    # Multimedia Content Methods
+    def add_multimedia_content(self, content_type: str, content_url: str, description: str,
+                              course_id: int, module_id: int, lesson_id: int):
+        """Add multimedia content to a lesson"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("""
+                INSERT INTO multimedia_content 
+                (content_type, content_url, content_description, course_id, module_id, lesson_id)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (content_type, content_url, description, course_id, module_id, lesson_id))
+            conn.commit()
+            return True
+        except Exception as e:
+            print(f"Error adding multimedia content: {e}")
+            return False
+        finally:
+            conn.close()
+    
+    def get_lesson_multimedia(self, course_id: int, module_id: int, lesson_id: int):
+        """Get multimedia content for a specific lesson"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("""
+                SELECT content_type, content_url, content_description
+                FROM multimedia_content 
+                WHERE course_id = ? AND module_id = ? AND lesson_id = ?
+            """, (course_id, module_id, lesson_id))
+            return cursor.fetchall()
+        except Exception as e:
+            print(f"Error getting multimedia content: {e}")
+            return []
         finally:
             conn.close()
 
