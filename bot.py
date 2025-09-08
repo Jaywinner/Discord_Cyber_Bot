@@ -638,6 +638,11 @@ async def start_quiz(ctx, course_id: int = None, module_id: int = None, lesson_i
             )
             await ctx.send(embed=embed)
 
+@bot.command(name="random_quiz", aliases=["rq", "random"])
+async def random_quiz_command(ctx):
+    """🎲 Take a random quiz from any course for bonus XP!"""
+    await quiz_manager.start_random_quiz(ctx)
+
 @bot.command(name="achievements", aliases=["ach", "badges"])
 async def show_achievements(ctx, user: discord.Member = None):
     """🏆 View your achievements and badges"""
@@ -675,7 +680,7 @@ async def help_command(ctx):
     
     embed.add_field(
         name="📚 Learning Commands",
-        value="`!lesson [course] [module] [lesson]` - View specific lesson\n`!quiz` - Take a quiz\n`!quiz [course] [module]` - Take module quiz",
+        value="`!lesson [course] [module] [lesson]` - View specific lesson\n`!quiz` - Take a quiz\n`!quiz [course] [module]` - Take module quiz\n`!random_quiz` - Random quiz for bonus XP!",
         inline=False
     )
     

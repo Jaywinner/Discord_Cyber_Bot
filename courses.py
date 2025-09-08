@@ -40,6 +40,12 @@ When you use online banking, cybersecurity protects your money from digital thie
                             "title": "Security Mindset Challenge",
                             "description": "Look around your digital life and identify 3 things you want to protect",
                             "example_answers": ["Bank account", "Social media", "Email", "Photos", "Work files"]
+                        },
+                        "quiz": {
+                            "question": "What is the main purpose of cybersecurity?",
+                            "options": ["To make computers faster", "To protect information, systems, and networks from digital attacks", "To create new software", "To design websites"],
+                            "correct": 1,
+                            "explanation": "Cybersecurity is like being a digital bodyguard - its main purpose is to protect information, systems, and networks from digital attacks and threats."
                         }
                     },
                     2: {
@@ -121,6 +127,12 @@ Before posting "Going on vacation to Hawaii!" think: "Am I telling criminals my 
                             "title": "Security Mindset Practice",
                             "description": "For the next 24 hours, question 3 digital activities you normally do without thinking",
                             "examples": ["Why does this app need camera access?", "Is this WiFi network safe?", "Should I share this location?"]
+                        },
+                        "quiz": {
+                            "question": "What is the first principle of a security mindset?",
+                            "options": ["Trust everything by default", "Question everything", "Share information freely", "Ignore security warnings"],
+                            "correct": 1,
+                            "explanation": "The security mindset starts with questioning everything - asking 'What could go wrong?' and 'How can I protect myself?' before taking any action."
                         }
                     }
                 }
@@ -221,6 +233,12 @@ Set up a password manager today and migrate your top 5 most important accounts (
                             "title": "Password Manager Setup",
                             "description": "Install a password manager and secure your top 3 accounts with unique, strong passwords",
                             "steps": ["Choose a password manager", "Create a strong master password", "Add your most important accounts"]
+                        },
+                        "quiz": {
+                            "question": "What is the main advantage of using a password manager?",
+                            "options": ["It makes passwords shorter", "It allows you to use unique, strong passwords for every account", "It eliminates the need for passwords", "It makes websites load faster"],
+                            "correct": 1,
+                            "explanation": "Password managers allow you to use unique, strong passwords for every account without having to remember them all. This means if one site gets breached, your other accounts remain safe."
                         }
                     },
                     3: {
@@ -339,6 +357,12 @@ Phishing emails are like digital disguises - they pretend to be someone trustwor
                             "title": "Phishing Email Analysis",
                             "description": "Look at your recent emails and identify any that have phishing red flags",
                             "red_flags": ["Urgent language", "Generic greetings", "Suspicious links", "Grammar errors", "Requests for personal info"]
+                        },
+                        "quiz": {
+                            "question": "Which of these is the BIGGEST red flag in a phishing email?",
+                            "options": ["The email is long", "Generic greeting like 'Dear Customer'", "The email has images", "It's sent on a weekend"],
+                            "correct": 1,
+                            "explanation": "Generic greetings like 'Dear Customer' are a major red flag because legitimate companies usually address you by name. This indicates the sender doesn't actually know you or have your real information."
                         }
                     },
                     2: {
@@ -448,6 +472,12 @@ The internet is like a big city - there are safe neighborhoods and dangerous one
                             "title": "Browser Security Audit",
                             "description": "Check and enable security features in your web browser",
                             "checklist": ["Enable safe browsing", "Turn on pop-up blocker", "Update browser", "Install ad blocker", "Check privacy settings"]
+                        },
+                        "quiz": {
+                            "question": "What should you look for to verify a website is secure for entering personal information?",
+                            "options": ["The website has lots of colors", "The URL starts with 'https://' and shows a lock icon", "The website loads quickly", "The website has many advertisements"],
+                            "correct": 1,
+                            "explanation": "A secure website will have 'https://' in the URL and show a lock icon in the address bar. This indicates the connection is encrypted and safer for entering personal information."
                         }
                     }
                 }
@@ -584,6 +614,12 @@ WiFi is like having an invisible cable connecting your devices. But if not secur
                             "title": "WiFi Security Audit",
                             "description": "Check and improve your home WiFi security settings",
                             "steps": ["Check WiFi encryption type", "Change default passwords", "Update router firmware", "Set up guest network", "Disable WPS"]
+                        },
+                        "quiz": {
+                            "question": "Which WiFi security standard is the strongest and most secure?",
+                            "options": ["WEP", "WPA", "WPA2", "WPA3"],
+                            "correct": 3,
+                            "explanation": "WPA3 is the latest and strongest WiFi security standard, providing the best protection against attacks. It should be used whenever available."
                         }
                     }
                 }

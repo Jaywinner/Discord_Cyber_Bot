@@ -21,6 +21,8 @@ class QuizView(View):
         self.lesson_id = lesson_id
         self.answered = False
         self.correct_answer = quiz_data["correct"]
+        self.start_time = asyncio.get_event_loop().time()
+        self.time_limit = 300  # 5 minutes in seconds
         
         # Create buttons for each option
         for i, option in enumerate(quiz_data["options"]):
@@ -114,10 +116,50 @@ class QuizView(View):
         
         return callback
     
+    def get_remaining_time(self):
+        """Get remaining time in seconds"""
+        elapsed = asyncio.get_event_loop().time() - self.start_time
+        remaining = max(0, self.time_limit - elapsed)
+        return int(remaining)
+    
+    def format_time(self, seconds):
+        """Format seconds into MM:SS format"""
+        minutes = seconds // 60
+        seconds = seconds % 60
+        return f"{minutes:02d}:{seconds:02d}"
+    
     async def on_timeout(self):
         """Handle quiz timeout"""
         for item in self.children:
             item.disabled = True
+        
+        # Create timeout embed
+        embed = discord.Embed(
+            title="⏰ Time's Up!",
+            description="You ran out of time to answer this quiz question.",
+            color=0xFF6B6B
+        )
+        embed.add_field(
+            name="Correct Answer",
+            value=f"**{chr(65 + self.correct_answer)}.** {self.quiz_data['options'][self.correct_answer]}",
+            inline=False
+        )
+        embed.add_field(
+            name="Explanation",
+            value=self.quiz_data['explanation'],
+            inline=False
+        )
+        embed.add_field(
+            name="💡 Tip",
+            value="Take your time to read questions carefully, but don't overthink it!",
+            inline=False
+        )
+        
+        # Record failed attempt due to timeout
+        db.record_quiz_attempt(
+            self.user_id, self.course_id, self.module_id,
+            self.lesson_id, 0, 1
+        )
 
 class MultiQuizView(View):
     def __init__(self, questions: list, user_id: int, course_id: int, module_id: int, lesson_id: int):
@@ -368,7 +410,19 @@ class QuizManager:
             inline=False
         )
         
-        embed.set_footer(text="You have 5 minutes to answer!")
+        embed.add_field(
+            name="⏰ Time Limit",
+            value="**5:00 minutes** to answer",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="🎯 Points",
+            value="**100 XP** for correct answer",
+            inline=True
+        )
+        
+        embed.set_footer(text="💡 Take your time but don't overthink it!")
         
         # Create view with buttons
         view = QuizView(quiz_data, ctx.author.id, course_id, module_id, lesson_id)
@@ -516,6 +570,164 @@ class QuizManager:
             await ctx.send(embed=embed)
         finally:
             conn.close()
+    
+    async def start_random_quiz(self, ctx):
+        """Start a random quiz from any course"""
+        from courses import COURSES
+        
+        # Collect all available quizzes
+        all_quizzes = []
+        for course_id, course in COURSES.items():
+            for module_id, module in course["modules"].items():
+                for lesson_id, lesson in module["lessons"].items():
+                    if "quiz" in lesson:
+                        all_quizzes.append({
+                            "course_id": course_id,
+                            "module_id": module_id,
+                            "lesson_id": lesson_id,
+                            "lesson": lesson,
+                            "course_title": course["title"]
+                        })
+        
+        if not all_quizzes:
+            embed = discord.Embed(
+                title="❌ No Quizzes Available",
+                description="No quizzes are available at the moment.",
+                color=0xFF0000
+            )
+            await ctx.send(embed=embed)
+            return
+        
+        # Select random quiz
+        selected_quiz = random.choice(all_quizzes)
+        lesson = selected_quiz["lesson"]
+        quiz_data = lesson["quiz"]
+        
+        # Create quiz embed
+        embed = discord.Embed(
+            title=f"🎲 Random Quiz Challenge",
+            description=f"**From:** {selected_quiz['course_title']}\n**Lesson:** {lesson['title']}\n\n**Question:** {quiz_data['question']}",
+            color=0xFF6B35
+        )
+        
+        # Add options
+        options_text = ""
+        for i, option in enumerate(quiz_data["options"]):
+            options_text += f"**{chr(65 + i)}.** {option}\n"
+        
+        embed.add_field(
+            name="Choose your answer:",
+            value=options_text,
+            inline=False
+        )
+        
+        embed.add_field(
+            name="⏰ Time Limit",
+            value="**5:00 minutes** to answer",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="🎯 Bonus Points",
+            value="**150 XP** for random quiz!",
+            inline=True
+        )
+        
+        embed.set_footer(text="🎲 Random quizzes give bonus XP!")
+        
+        # Create view with buttons (bonus XP for random quiz)
+        view = RandomQuizView(quiz_data, ctx.author.id, selected_quiz["course_id"], 
+                             selected_quiz["module_id"], selected_quiz["lesson_id"])
+        
+        await ctx.send(embed=embed, view=view)
+
+# Special view for random quizzes with bonus XP
+class RandomQuizView(QuizView):
+    def __init__(self, quiz_data: dict, user_id: int, course_id: int, module_id: int, lesson_id: int):
+        super().__init__(quiz_data, user_id, course_id, module_id, lesson_id)
+        self.bonus_xp = True  # Flag for bonus XP
+    
+    def create_callback(self, option_index: int):
+        """Create callback function for random quiz option button with bonus XP"""
+        async def callback(interaction: discord.Interaction):
+            if interaction.user.id != self.user_id:
+                await interaction.response.send_message(
+                    "❌ This isn't your quiz! Use `!random_quiz` to start your own.",
+                    ephemeral=True
+                )
+                return
+            
+            if self.answered:
+                await interaction.response.send_message(
+                    "❌ You've already answered this quiz!",
+                    ephemeral=True
+                )
+                return
+            
+            self.answered = True
+            
+            # Disable all buttons
+            for item in self.children:
+                item.disabled = True
+            
+            # Check if answer is correct
+            is_correct = option_index == self.correct_answer
+            
+            # Create response embed
+            if is_correct:
+                embed = discord.Embed(
+                    title="✅ Correct!",
+                    description=f"**Excellent!** {self.quiz_data['explanation']}",
+                    color=0x00FF00
+                )
+                xp_earned = 150  # Bonus XP for random quiz
+                db.add_xp(self.user_id, xp_earned)
+                embed.add_field(
+                    name="Bonus XP Earned!",
+                    value=f"+{xp_earned} XP (Random Quiz Bonus!)",
+                    inline=True
+                )
+                
+                # Record perfect quiz attempt
+                db.record_quiz_attempt(
+                    self.user_id, self.course_id, self.module_id, 
+                    self.lesson_id, 1, 1
+                )
+                
+                # Check for achievements
+                new_achievements = achievement_manager.check_and_award_achievements(
+                    self.user_id, "perfect_quiz"
+                )
+                
+                if new_achievements:
+                    achievement_text = "\n".join([f"🏆 {ach['name']}" for ach in new_achievements])
+                    embed.add_field(
+                        name="New Achievements!",
+                        value=achievement_text,
+                        inline=False
+                    )
+            else:
+                embed = discord.Embed(
+                    title="❌ Incorrect",
+                    description=f"The correct answer was **{chr(65 + self.correct_answer)}. {self.quiz_data['options'][self.correct_answer]}**\n\n{self.quiz_data['explanation']}",
+                    color=0xFF0000
+                )
+                embed.add_field(
+                    name="Keep Learning!",
+                    value="Try more random quizzes to improve your skills!",
+                    inline=False
+                )
+                
+                # Record failed quiz attempt
+                db.record_quiz_attempt(
+                    self.user_id, self.course_id, self.module_id,
+                    self.lesson_id, 0, 1
+                )
+            
+            # Update the message with results
+            await interaction.response.edit_message(embed=embed, view=self)
+        
+        return callback
 
 # Global quiz manager instance
 quiz_manager = QuizManager()
