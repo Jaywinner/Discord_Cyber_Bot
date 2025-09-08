@@ -16,7 +16,7 @@ load_dotenv()
 
 # Import our custom modules
 from database import db
-from courses import get_course, get_lesson, get_next_lesson, get_course_list
+from courses import get_course, get_lesson, get_next_lesson, get_course_list, get_module
 from achievements import achievement_manager
 from quiz import quiz_manager
 from admin import AdminCommands
@@ -29,6 +29,46 @@ GUILD_ID = 1394809146036977795  # Replace with your server ID
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix=PREFIX, intents=intents)
+
+class CourseSelectionView(View):
+    def __init__(self, user_id: int):
+        super().__init__(timeout=300)
+        self.user_id = user_id
+        
+        # Add course selection buttons
+        courses = get_course_list()
+        for course in courses[:5]:  # Limit to 5 courses to avoid button limit
+            button = Button(
+                label=f"{course['title'][:20]}...",
+                style=discord.ButtonStyle.primary,
+                custom_id=f"course_{course['id']}"
+            )
+            button.callback = self.select_course
+            self.add_item(button)
+    
+    async def select_course(self, interaction: discord.Interaction):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message(
+                "❌ This isn't your course selection! Use `!start` to begin your own journey.",
+                ephemeral=True
+            )
+            return
+        
+        # Extract course ID from custom_id
+        course_id = int(interaction.data['custom_id'].split('_')[1])
+        course = get_course(course_id)
+        
+        # Update user's progress to start this course
+        db.update_user_progress(self.user_id, course_id, 1, 1)
+        
+        await interaction.response.send_message(
+            f"🎉 Great choice! You've selected **{course['title']}**\n"
+            f"📖 Starting your first lesson...",
+            ephemeral=True
+        )
+        
+        # Show the first lesson
+        await show_lesson(interaction.followup, course_id, 1, 1, self.user_id)
 
 class LessonView(View):
     def __init__(self, user_id: int, course_id: int, module_id: int, lesson_id: int):
@@ -60,7 +100,13 @@ class LessonView(View):
         xp_reward = lesson.get("xp_reward", 100)
         new_xp = db.add_xp(interaction.user.id, xp_reward)
         
-        # Update progress
+        # Update progress to next lesson
+        next_lesson_info = get_next_lesson(self.course_id, self.module_id, self.lesson_id)
+        if next_lesson_info:
+            next_course_id, next_module_id, next_lesson_id = next_lesson_info
+            db.update_user_progress(interaction.user.id, next_course_id, next_module_id, next_lesson_id)
+        
+        # Update completion progress
         db.update_progress(interaction.user.id, self.course_id, self.module_id, self.lesson_id)
         
         # Check for achievements
@@ -84,27 +130,67 @@ class LessonView(View):
                 inline=False
             )
         
-        # Check for next lesson
-        next_lesson_info = get_next_lesson(self.course_id, self.module_id, self.lesson_id)
-        if next_lesson_info:
-            next_course_id, next_module_id, next_lesson_id = next_lesson_info
-            embed.add_field(
-                name="What's Next?",
-                value=f"Use `!lesson {next_course_id} {next_module_id} {next_lesson_id}` for your next lesson!",
-                inline=False
-            )
-        else:
-            embed.add_field(
-                name="🎓 Congratulations!",
-                value="You've completed all available lessons! More content coming soon.",
-                inline=False
-            )
-        
-        # Disable the button
+        # Disable the complete button
         button.disabled = True
         button.label = "✅ Completed"
         
-        await interaction.response.edit_message(embed=embed, view=self)
+        # Create new view with progression options
+        new_view = View(timeout=300)
+        
+        # Check for next lesson
+        if next_lesson_info:
+            next_course_id, next_module_id, next_lesson_id = next_lesson_info
+            next_lesson = get_lesson(next_course_id, next_module_id, next_lesson_id)
+            next_course = get_course(next_course_id)
+            
+            # Check if we're moving to a new course
+            if next_course_id != self.course_id:
+                embed.add_field(
+                    name="🎓 Course Complete!",
+                    value=f"You've finished **{get_course(self.course_id)['title']}**!\n"
+                          f"Ready to start **{next_course['title']}**?",
+                    inline=False
+                )
+                next_button_label = f"🚀 Start Next Course"
+            else:
+                embed.add_field(
+                    name="📚 What's Next?",
+                    value=f"Ready for your next lesson: **{next_lesson['title']}**?",
+                    inline=False
+                )
+                next_button_label = f"📖 Next Lesson"
+            
+            # Add next lesson button
+            async def next_lesson_callback(inter):
+                if inter.user.id != self.user_id:
+                    await inter.response.send_message("❌ This isn't your journey!", ephemeral=True)
+                    return
+                await inter.response.send_message("📖 Loading next lesson...", ephemeral=True)
+                await show_lesson(inter.followup, next_course_id, next_module_id, next_lesson_id, self.user_id)
+            
+            next_button = Button(label=next_button_label, style=discord.ButtonStyle.primary)
+            next_button.callback = next_lesson_callback
+            new_view.add_item(next_button)
+        else:
+            embed.add_field(
+                name="🎓 Congratulations!",
+                value="You've completed all available content! Amazing work on your cybersecurity journey!",
+                inline=False
+            )
+        
+        # Add browse courses button
+        async def browse_courses_callback(inter):
+            if inter.user.id != self.user_id:
+                await inter.response.send_message("❌ This isn't your journey!", ephemeral=True)
+                return
+            await inter.response.send_message("📚 Loading course catalog...", ephemeral=True)
+            await list_courses_with_selection(inter.followup, self.user_id)
+        
+        browse_button = Button(label="📚 Browse Courses", style=discord.ButtonStyle.secondary)
+        browse_button.callback = browse_courses_callback
+        new_view.add_item(browse_button)
+        
+        await interaction.response.edit_message(embed=embed, view=new_view)
         
         # Send DM with achievement notifications
         if new_achievements:
@@ -172,91 +258,133 @@ async def start_journey(ctx):
     
     # Get user stats
     user_stats = db.get_user_stats(ctx.author.id)
-    if user_stats:
-        username, xp, level, current_course, current_module, current_lesson = user_stats
-    else:
-        current_course, current_module, current_lesson = 1, 1, 1
-        xp, level = 0, 1
     
-    # Get current lesson
-    lesson = get_lesson(current_course, current_module, current_lesson)
-    course = get_course(current_course)
-    
-    if not lesson or not course:
+    # Check if this is a new user (no progress yet)
+    if not user_stats or user_stats[1] == 0:  # No XP means new user
+        # Show course selection for new users
         embed = discord.Embed(
-            title="❌ Error",
-            description="Could not find your current lesson. Please contact an administrator.",
-            color=0xFF0000
+            title="🚀 Welcome to Cyber Academy!",
+            description=f"Welcome **{ctx.author.display_name}**! Choose your cybersecurity learning path:",
+            color=0x0099FF
         )
-        await ctx.send(embed=embed)
-        return
-    
-    # Create welcome embed
-    embed = discord.Embed(
-        title="🚀 Welcome to Cyber Academy!",
-        description=f"Ready to continue your cybersecurity journey, **{ctx.author.display_name}**?",
-        color=0x0099FF
-    )
-    
-    embed.add_field(
-        name="📊 Your Progress",
-        value=f"• **Level:** {level}\n• **XP:** {xp:,}\n• **Current Course:** {course['title']}",
-        inline=False
-    )
-    
-    embed.add_field(
-        name="📚 Next Lesson",
-        value=f"**{lesson['title']}**\nCourse {current_course} • Module {current_module} • Lesson {current_lesson}",
-        inline=False
-    )
-    
-    embed.add_field(
-        name="🎯 Quick Commands",
-        value="• `!lesson` - View current lesson\n• `!courses` - Browse all courses\n• `!progress` - Check your progress\n• `!leaderboard` - See top learners",
-        inline=False
-    )
-    
-    embed.set_footer(text="Click the button below to start your next lesson!")
-    
-    # Create start button
-    view = View(timeout=300)
-    
-    async def start_lesson(interaction):
-        if interaction.user.id != ctx.author.id:
-            await interaction.response.send_message(
-                "❌ This isn't your journey! Use `!start` to begin your own.",
-                ephemeral=True
+        
+        courses = get_course_list()
+        course_descriptions = []
+        for course in courses:
+            course_descriptions.append(f"**{course['title']}** ({course['level']})\n{course['description']}")
+        
+        embed.add_field(
+            name="📚 Available Courses",
+            value="\n\n".join(course_descriptions),
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🎯 Getting Started",
+            value="Select a course below to begin your cybersecurity journey!\nEach course contains multiple modules with hands-on lessons.",
+            inline=False
+        )
+        
+        embed.set_footer(text="Choose wisely! You can always switch courses later.")
+        
+        # Create course selection view
+        view = CourseSelectionView(ctx.author.id)
+        await ctx.send(embed=embed, view=view)
+        
+    else:
+        # Existing user - show progress and continue
+        username, xp, level, current_course, current_module, current_lesson = user_stats
+        
+        # Get current lesson
+        lesson = get_lesson(current_course, current_module, current_lesson)
+        course = get_course(current_course)
+        
+        if not lesson or not course:
+            embed = discord.Embed(
+                title="❌ Error",
+                description="Could not find your current lesson. Please contact an administrator.",
+                color=0xFF0000
             )
+            await ctx.send(embed=embed)
             return
         
-        await interaction.response.send_message(
-            f"📖 Loading lesson: **{lesson['title']}**...",
-            ephemeral=True
+        # Create welcome back embed
+        embed = discord.Embed(
+            title="🚀 Welcome Back to Cyber Academy!",
+            description=f"Ready to continue your cybersecurity journey, **{ctx.author.display_name}**?",
+            color=0x0099FF
         )
         
-        # Show the lesson
-        await show_lesson(ctx, current_course, current_module, current_lesson)
-    
-    start_button = Button(label="📖 Start Next Lesson", style=discord.ButtonStyle.green)
-    start_button.callback = start_lesson
-    view.add_item(start_button)
-    
-    await ctx.send(embed=embed, view=view)
+        embed.add_field(
+            name="📊 Your Progress",
+            value=f"• **Level:** {level}\n• **XP:** {xp:,}\n• **Current Course:** {course['title']}",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="📚 Next Lesson",
+            value=f"**{lesson['title']}**\nCourse {current_course} • Module {current_module} • Lesson {current_lesson}",
+            inline=False
+        )
+        
+        embed.add_field(
+            name="🎯 Quick Commands",
+            value="• `!lesson` - View current lesson\n• `!courses` - Browse all courses\n• `!progress` - Check your progress\n• `!leaderboard` - See top learners",
+            inline=False
+        )
+        
+        embed.set_footer(text="Click the button below to continue your learning!")
+        
+        # Create continue button
+        view = View(timeout=300)
+        
+        async def continue_lesson(interaction):
+            if interaction.user.id != ctx.author.id:
+                await interaction.response.send_message(
+                    "❌ This isn't your journey! Use `!start` to begin your own.",
+                    ephemeral=True
+                )
+                return
+            
+            await interaction.response.send_message(
+                f"📖 Loading lesson: **{lesson['title']}**...",
+                ephemeral=True
+            )
+            
+            # Show the lesson
+            await show_lesson(interaction.followup, current_course, current_module, current_lesson, ctx.author.id)
+        
+        continue_button = Button(label="📖 Continue Learning", style=discord.ButtonStyle.green)
+        continue_button.callback = continue_lesson
+        view.add_item(continue_button)
+        
+        # Add course selection button for existing users too
+        async def select_new_course(interaction):
+            if interaction.user.id != ctx.author.id:
+                await interaction.response.send_message("❌ This isn't your journey!", ephemeral=True)
+                return
+            await interaction.response.send_message("📚 Loading course selection...", ephemeral=True)
+            await list_courses_with_selection(interaction.followup, ctx.author.id)
+        
+        course_button = Button(label="📚 Choose Different Course", style=discord.ButtonStyle.secondary)
+        course_button.callback = select_new_course
+        view.add_item(course_button)
+        
+        await ctx.send(embed=embed, view=view)
 
-@bot.command(name="lesson")
-async def show_lesson(ctx, course_id: int = None, module_id: int = None, lesson_id: int = None):
-    """📖 View a specific lesson or your current lesson"""
+async def show_lesson(ctx_or_followup, course_id: int, module_id: int, lesson_id: int, user_id: int = None):
+    """Internal function to show a lesson - works with both ctx and followup"""
+    
+    # Determine user_id if not provided
+    if user_id is None:
+        if hasattr(ctx_or_followup, 'author'):
+            user_id = ctx_or_followup.author.id
+        else:
+            # This shouldn't happen, but fallback
+            return
     
     # Add user to database
-    db.add_user(ctx.author.id, ctx.author.display_name)
-    
-    # If no parameters provided, show current lesson
-    if not all([course_id, module_id, lesson_id]):
-        user_stats = db.get_user_stats(ctx.author.id)
-        if user_stats:
-            _, _, _, course_id, module_id, lesson_id = user_stats
-        else:
-            course_id, module_id, lesson_id = 1, 1, 1
+    db.add_user(user_id, "User")  # We'll update the name later if needed
     
     # Get lesson and course data
     lesson = get_lesson(course_id, module_id, lesson_id)
@@ -268,7 +396,10 @@ async def show_lesson(ctx, course_id: int = None, module_id: int = None, lesson_
             description="Could not find the specified lesson.",
             color=0xFF0000
         )
-        await ctx.send(embed=embed)
+        if hasattr(ctx_or_followup, 'send'):
+            await ctx_or_followup.send(embed=embed)
+        else:
+            await ctx_or_followup.send(embed=embed)
         return
     
     # Create lesson embed
@@ -299,12 +430,69 @@ async def show_lesson(ctx, course_id: int = None, module_id: int = None, lesson_
             inline=False
         )
     
+    # Add quiz info if available
+    if "quiz" in lesson:
+        embed.add_field(
+            name="🎯 Quiz Available",
+            value="Test your knowledge with the lesson quiz!",
+            inline=False
+        )
+    
     embed.set_footer(text="Complete the lesson to earn XP and unlock achievements!")
     
-    # Create lesson view with buttons
-    view = LessonView(ctx.author.id, course_id, module_id, lesson_id)
+    # Create lesson view with interactive buttons
+    view = LessonView(user_id, course_id, module_id, lesson_id)
     
-    await ctx.send(embed=embed, view=view)
+    if hasattr(ctx_or_followup, 'send'):
+        await ctx_or_followup.send(embed=embed, view=view)
+    else:
+        await ctx_or_followup.send(embed=embed, view=view)
+
+async def list_courses_with_selection(ctx_or_followup, user_id: int):
+    """Show course list with selection buttons"""
+    
+    courses = get_course_list()
+    
+    embed = discord.Embed(
+        title="📚 Course Catalog",
+        description="Choose a course to start or switch to:",
+        color=0x0099FF
+    )
+    
+    for course in courses:
+        embed.add_field(
+            name=f"{course['title']} ({course['level']})",
+            value=f"{course['description']}\n\n",
+            inline=False
+        )
+    
+    embed.set_footer(text="Select a course below to begin!")
+    
+    # Create course selection view
+    view = CourseSelectionView(user_id)
+    
+    if hasattr(ctx_or_followup, 'send'):
+        await ctx_or_followup.send(embed=embed, view=view)
+    else:
+        await ctx_or_followup.send(embed=embed, view=view)
+
+@bot.command(name="lesson")
+async def lesson_command(ctx, course_id: int = None, module_id: int = None, lesson_id: int = None):
+    """📖 View a specific lesson or your current lesson"""
+    
+    # Add user to database
+    db.add_user(ctx.author.id, ctx.author.display_name)
+    
+    # If no parameters provided, show current lesson
+    if not all([course_id, module_id, lesson_id]):
+        user_stats = db.get_user_stats(ctx.author.id)
+        if user_stats:
+            _, _, _, course_id, module_id, lesson_id = user_stats
+        else:
+            course_id, module_id, lesson_id = 1, 1, 1
+    
+    # Use the internal show_lesson function
+    await show_lesson(ctx, course_id, module_id, lesson_id, ctx.author.id)
 
 @bot.command(name="courses")
 async def list_courses(ctx):

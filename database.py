@@ -169,6 +169,24 @@ class DatabaseManager:
         finally:
             conn.close()
     
+    def update_user_progress(self, user_id: int, course_id: int, module_id: int, lesson_id: int):
+        """Update user's current position without marking as completed"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Update user's current position
+            cursor.execute("""
+                UPDATE users SET current_course = ?, current_module = ?, current_lesson = ?
+                WHERE user_id = ?
+            """, (course_id, module_id, lesson_id, user_id))
+            
+            conn.commit()
+        except Exception as e:
+            print(f"Error updating user progress: {e}")
+        finally:
+            conn.close()
+    
     def add_achievement(self, user_id: int, achievement_name: str, achievement_type: str):
         """Add achievement to user"""
         conn = self.get_connection()
