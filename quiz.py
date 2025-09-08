@@ -37,7 +37,7 @@ class QuizView(View):
         async def callback(interaction: discord.Interaction):
             if interaction.user.id != self.user_id:
                 await interaction.response.send_message(
-                    "❌ This isn't your quiz! Use `!quiz` to start your own.",
+                    "❌ This isn't your quiz! Use `/quiz` to start your own.",
                     ephemeral=True
                 )
                 return
@@ -502,7 +502,7 @@ class QuizManager:
         
         await ctx.send(embed=embed, view=view)
     
-    async def start_module_quiz(self, ctx, course_id: int, module_id: int):
+    async def start_module_quiz(self, ctx, course_id: int, module_id: int, user_id: int = None):
         """Start a comprehensive quiz for a module"""
         from courses import get_module
         
@@ -550,8 +550,16 @@ class QuizManager:
             inline=False
         )
         
+        # Determine user_id - handle both regular context and webhook context
+        if user_id is None:
+            if hasattr(ctx, 'author'):
+                user_id = ctx.author.id
+            else:
+                # This shouldn't happen, but provide a fallback
+                raise ValueError("user_id must be provided when using webhook context")
+        
         # Create multi-quiz view
-        view = MultiQuizView(questions, ctx.author.id, course_id, module_id, 0)
+        view = MultiQuizView(questions, user_id, course_id, module_id, 0)
         
         await ctx.send(embed=embed)
         
@@ -562,7 +570,14 @@ class QuizManager:
     
     async def get_quiz_stats(self, ctx, user_id: int = None):
         """Get quiz statistics for a user"""
-        target_user_id = user_id or ctx.author.id
+        if user_id is None:
+            if hasattr(ctx, 'author'):
+                target_user_id = ctx.author.id
+            else:
+                # This shouldn't happen, but provide a fallback
+                raise ValueError("user_id must be provided when using webhook context")
+        else:
+            target_user_id = user_id
         
         conn = self.db.get_connection()
         cursor = conn.cursor()

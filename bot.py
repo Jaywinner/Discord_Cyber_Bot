@@ -50,7 +50,7 @@ class CourseSelectionView(View):
         if interaction.user.id != self.user_id:
             try:
                 await interaction.response.send_message(
-                    "❌ This isn't your course selection! Use `!start` to begin your own journey.",
+                    "❌ This isn't your course selection! Use `/start` to begin your own journey.",
                     ephemeral=True
                 )
             except discord.errors.NotFound:
@@ -93,7 +93,7 @@ class LessonView(View):
         if interaction.user.id != self.user_id:
             try:
                 await interaction.response.send_message(
-                    "❌ This isn't your lesson! Use `!start` to begin your own journey.",
+                    "❌ This isn't your lesson! Use `/start` to begin your own journey.",
                     ephemeral=True
                 )
             except discord.errors.NotFound:
@@ -258,7 +258,7 @@ class LessonView(View):
         if interaction.user.id != self.user_id:
             try:
                 await interaction.response.send_message(
-                    "❌ This isn't your lesson! Use `!start` to begin your own journey.",
+                    "❌ This isn't your lesson! Use `/start` to begin your own journey.",
                     ephemeral=True
                 )
             except discord.errors.NotFound:
@@ -309,22 +309,22 @@ async def on_ready():
     except Exception as e:
         print(f"❌ Failed to sync commands: {e}")
 
-@bot.command(name="start")
-async def start_journey(ctx):
+@bot.tree.command(name="start", description="🚀 Start your cybersecurity learning journey!")
+async def start_journey(interaction: discord.Interaction):
     """🚀 Start your cybersecurity learning journey!"""
     
     # Add user to database
-    db.add_user(ctx.author.id, ctx.author.display_name)
+    db.add_user(interaction.user.id, interaction.user.display_name)
     
     # Get user stats
-    user_stats = db.get_user_stats(ctx.author.id)
+    user_stats = db.get_user_stats(interaction.user.id)
     
     # Check if this is a new user (no progress yet)
     if not user_stats or user_stats[1] == 0:  # No XP means new user
         # Show course selection for new users
         embed = discord.Embed(
             title="🚀 Welcome to Cyber Academy!",
-            description=f"Welcome **{ctx.author.display_name}**! Choose your cybersecurity learning path:",
+            description=f"Welcome **{interaction.user.display_name}**! Choose your cybersecurity learning path:",
             color=0x0099FF
         )
         
@@ -348,8 +348,8 @@ async def start_journey(ctx):
         embed.set_footer(text="Choose wisely! You can always switch courses later.")
         
         # Create course selection view
-        view = CourseSelectionView(ctx.author.id)
-        await ctx.send(embed=embed, view=view)
+        view = CourseSelectionView(interaction.user.id)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
         
     else:
         # Existing user - show progress and continue
@@ -365,13 +365,13 @@ async def start_journey(ctx):
                 description="Could not find your current lesson. Please contact an administrator.",
                 color=0xFF0000
             )
-            await ctx.send(embed=embed)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
             return
         
         # Create welcome back embed
         embed = discord.Embed(
             title="🚀 Welcome Back to Cyber Academy!",
-            description=f"Ready to continue your cybersecurity journey, **{ctx.author.display_name}**?",
+            description=f"Ready to continue your cybersecurity journey, **{interaction.user.display_name}**?",
             color=0x0099FF
         )
         
@@ -389,7 +389,7 @@ async def start_journey(ctx):
         
         embed.add_field(
             name="🎯 Quick Commands",
-            value="• `!lesson` - View current lesson\n• `!courses` - Browse all courses\n• `!progress` - Check your progress\n• `!leaderboard` - See top learners",
+            value="• `/lesson` - View current lesson\n• `/courses` - Browse all courses\n• `/progress` - Check your progress\n• `/leaderboard` - See top learners",
             inline=False
         )
         
@@ -398,11 +398,11 @@ async def start_journey(ctx):
         # Create continue button
         view = View(timeout=300)
         
-        async def continue_lesson(interaction):
-            if interaction.user.id != ctx.author.id:
+        async def continue_lesson(button_interaction):
+            if button_interaction.user.id != interaction.user.id:
                 try:
-                    await interaction.response.send_message(
-                        "❌ This isn't your journey! Use `!start` to begin your own.",
+                    await button_interaction.response.send_message(
+                        "❌ This isn't your journey! Use `/start` to begin your own.",
                         ephemeral=True
                     )
                 except discord.errors.NotFound:
@@ -411,46 +411,46 @@ async def start_journey(ctx):
                 return
             
             try:
-                await interaction.response.send_message(
+                await button_interaction.response.send_message(
                     f"📖 Loading lesson: **{lesson['title']}**...",
                     ephemeral=True
                 )
                 
                 # Show the lesson
-                await show_lesson(interaction.followup, current_course, current_module, current_lesson, ctx.author.id)
+                await show_lesson(button_interaction.followup, current_course, current_module, current_lesson, interaction.user.id)
             except discord.errors.NotFound:
                 # Interaction expired, send lesson directly to channel
-                channel = interaction.channel if hasattr(interaction, 'channel') else None
+                channel = button_interaction.channel if hasattr(button_interaction, 'channel') else None
                 if channel:
-                    await show_lesson(channel, current_course, current_module, current_lesson, ctx.author.id)
+                    await show_lesson(channel, current_course, current_module, current_lesson, interaction.user.id)
         
         continue_button = Button(label="📖 Continue Learning", style=discord.ButtonStyle.green)
         continue_button.callback = continue_lesson
         view.add_item(continue_button)
         
         # Add course selection button for existing users too
-        async def select_new_course(interaction):
-            if interaction.user.id != ctx.author.id:
+        async def select_new_course(button_interaction):
+            if button_interaction.user.id != interaction.user.id:
                 try:
-                    await interaction.response.send_message("❌ This isn't your journey!", ephemeral=True)
+                    await button_interaction.response.send_message("❌ This isn't your journey!", ephemeral=True)
                 except discord.errors.NotFound:
                     # Interaction expired, ignore
                     pass
                 return
             try:
-                await interaction.response.send_message("📚 Loading course selection...", ephemeral=True)
-                await list_courses_with_selection(interaction.followup, ctx.author.id)
+                await button_interaction.response.send_message("📚 Loading course selection...", ephemeral=True)
+                await list_courses_with_selection(button_interaction.followup, interaction.user.id)
             except discord.errors.NotFound:
                 # Interaction expired, send course selection directly to channel
-                channel = interaction.channel if hasattr(interaction, 'channel') else None
+                channel = button_interaction.channel if hasattr(button_interaction, 'channel') else None
                 if channel:
-                    await list_courses_with_selection(channel, ctx.author.id)
+                    await list_courses_with_selection(channel, interaction.user.id)
         
         course_button = Button(label="📚 Choose Different Course", style=discord.ButtonStyle.secondary)
         course_button.callback = select_new_course
         view.add_item(course_button)
         
-        await ctx.send(embed=embed, view=view)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 async def show_lesson(ctx_or_followup, course_id: int, module_id: int, lesson_id: int, user_id: int = None):
     """Internal function to show a lesson - works with both ctx and followup"""
@@ -556,26 +556,29 @@ async def list_courses_with_selection(ctx_or_followup, user_id: int):
     else:
         await ctx_or_followup.send(embed=embed, view=view)
 
-@bot.command(name="lesson")
-async def lesson_command(ctx, course_id: int = None, module_id: int = None, lesson_id: int = None):
+@bot.tree.command(name="lesson", description="📖 View a specific lesson or your current lesson")
+async def lesson_command(interaction: discord.Interaction, course_id: int = None, module_id: int = None, lesson_id: int = None):
     """📖 View a specific lesson or your current lesson"""
     
     # Add user to database
-    db.add_user(ctx.author.id, ctx.author.display_name)
+    db.add_user(interaction.user.id, interaction.user.display_name)
     
     # If no parameters provided, show current lesson
     if not all([course_id, module_id, lesson_id]):
-        user_stats = db.get_user_stats(ctx.author.id)
+        user_stats = db.get_user_stats(interaction.user.id)
         if user_stats:
             _, _, _, course_id, module_id, lesson_id = user_stats
         else:
             course_id, module_id, lesson_id = 1, 1, 1
     
+    # Send initial response
+    await interaction.response.send_message("📖 Loading lesson...", ephemeral=True)
+    
     # Use the internal show_lesson function
-    await show_lesson(ctx, course_id, module_id, lesson_id, ctx.author.id)
+    await show_lesson(interaction.followup, course_id, module_id, lesson_id, interaction.user.id)
 
-@bot.command(name="courses")
-async def list_courses(ctx):
+@bot.tree.command(name="courses", description="📚 Browse all available courses")
+async def list_courses(interaction: discord.Interaction):
     """📚 Browse all available courses"""
     
     courses = get_course_list()
@@ -589,19 +592,19 @@ async def list_courses(ctx):
     for course in courses:
         embed.add_field(
             name=f"{course['title']} ({course['level']})",
-            value=f"{course['description']}\nUse `!lesson {course['id']} 1 1` to start",
+            value=f"{course['description']}\nUse `/lesson {course['id']} 1 1` to start",
             inline=False
         )
     
     embed.set_footer(text="More courses coming soon!")
     
-    await ctx.send(embed=embed)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
-@bot.command(name="progress")
-async def show_progress(ctx, user: discord.Member = None):
+@bot.tree.command(name="progress", description="📊 Check your learning progress")
+async def show_progress(interaction: discord.Interaction, user: discord.Member = None):
     """📊 Check your learning progress"""
     
-    target_user = user or ctx.author
+    target_user = user or interaction.user
     
     # Add user to database
     db.add_user(target_user.id, target_user.display_name)
@@ -610,10 +613,10 @@ async def show_progress(ctx, user: discord.Member = None):
     if not user_stats:
         embed = discord.Embed(
             title="❌ No Progress Found",
-            description="Start learning with `!start` to track your progress!",
+            description="Start learning with `/start` to track your progress!",
             color=0xFF0000
         )
-        await ctx.send(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
         return
     
     username, xp, level, current_course, current_module, current_lesson = user_stats
@@ -653,10 +656,10 @@ async def show_progress(ctx, user: discord.Member = None):
             inline=False
         )
     
-    await ctx.send(embed=embed)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
-@bot.command(name="leaderboard", aliases=["lb", "top"])
-async def show_leaderboard(ctx):
+@bot.tree.command(name="leaderboard", description="🏆 View the top cybersecurity learners")
+async def show_leaderboard(interaction: discord.Interaction):
     """🏆 View the top cybersecurity learners"""
     
     leaderboard = db.get_leaderboard(10)
@@ -667,7 +670,7 @@ async def show_leaderboard(ctx):
             description="No learners yet! Be the first to start your cybersecurity journey!",
             color=0xFFD700
         )
-        await ctx.send(embed=embed)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
         return
     
     embed = discord.Embed(
@@ -691,54 +694,58 @@ async def show_leaderboard(ctx):
     
     embed.set_footer(text="Keep learning to climb the ranks!")
     
-    await ctx.send(embed=embed)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
-@bot.command(name="quiz")
-async def start_quiz(ctx, course_id: int = None, module_id: int = None, lesson_id: int = None):
+@bot.tree.command(name="quiz", description="🎯 Take a quiz for a lesson or module")
+async def start_quiz(interaction: discord.Interaction, course_id: int = None, module_id: int = None, lesson_id: int = None):
     """🎯 Take a quiz for a lesson or module"""
     
     if all([course_id, module_id, lesson_id]):
         # Specific lesson quiz
-        await quiz_manager.start_lesson_quiz(ctx, course_id, module_id, lesson_id)
+        await interaction.response.send_message("🎯 Starting quiz...", ephemeral=True)
+        await quiz_manager.start_lesson_quiz(interaction.followup, course_id, module_id, lesson_id)
     elif course_id and module_id:
         # Module quiz
-        await quiz_manager.start_module_quiz(ctx, course_id, module_id)
+        await interaction.response.send_message("🎯 Starting module quiz...", ephemeral=True)
+        await quiz_manager.start_module_quiz(interaction.followup, course_id, module_id, interaction.user.id)
     else:
         # Current lesson quiz
-        db.add_user(ctx.author.id, ctx.author.display_name)
-        user_stats = db.get_user_stats(ctx.author.id)
+        db.add_user(interaction.user.id, interaction.user.display_name)
+        user_stats = db.get_user_stats(interaction.user.id)
         if user_stats:
             _, _, _, current_course, current_module, current_lesson = user_stats
-            await quiz_manager.start_lesson_quiz(ctx, current_course, current_module, current_lesson)
+            await interaction.response.send_message("🎯 Starting current lesson quiz...", ephemeral=True)
+            await quiz_manager.start_lesson_quiz(interaction.followup, current_course, current_module, current_lesson)
         else:
             embed = discord.Embed(
                 title="❌ No Current Lesson",
-                description="Use `!start` to begin your learning journey first!",
+                description="Use `/start` to begin your learning journey first!",
                 color=0xFF0000
             )
-            await ctx.send(embed=embed)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
 
-@bot.command(name="achievements", aliases=["ach", "badges"])
-async def show_achievements(ctx, user: discord.Member = None):
+@bot.tree.command(name="achievements", description="🏆 View your achievements and badges")
+async def show_achievements(interaction: discord.Interaction, user: discord.Member = None):
     """🏆 View your achievements and badges"""
     
-    target_user = user or ctx.author
+    target_user = user or interaction.user
     
     # Add user to database
     db.add_user(target_user.id, target_user.display_name)
     
     embed = achievement_manager.create_achievements_list_embed(target_user.id)
-    await ctx.send(embed=embed)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
-@bot.command(name="stats")
-async def quiz_stats(ctx, user: discord.Member = None):
+@bot.tree.command(name="stats", description="📊 View quiz statistics")
+async def quiz_stats(interaction: discord.Interaction, user: discord.Member = None):
     """📊 View quiz statistics"""
     
-    target_user = user or ctx.author
-    await quiz_manager.get_quiz_stats(ctx, target_user.id)
+    target_user = user or interaction.user
+    await interaction.response.send_message("📊 Loading quiz statistics...", ephemeral=True)
+    await quiz_manager.get_quiz_stats(interaction.followup, target_user.id)
 
-@bot.command(name="help_cyber", aliases=["help_academy"])
-async def help_command(ctx):
+@bot.tree.command(name="help", description="❓ Get help with bot commands")
+async def help_command(interaction: discord.Interaction):
     """❓ Get help with bot commands"""
     
     embed = discord.Embed(
@@ -749,31 +756,31 @@ async def help_command(ctx):
     
     embed.add_field(
         name="🚀 Getting Started",
-        value="`!start` - Begin your cybersecurity journey\n`!courses` - Browse available courses\n`!lesson` - View your current lesson",
+        value="`/start` - Begin your cybersecurity journey\n`/courses` - Browse available courses\n`/lesson` - View your current lesson",
         inline=False
     )
     
     embed.add_field(
         name="📚 Learning Commands",
-        value="`!lesson [course] [module] [lesson]` - View specific lesson\n`!quiz` - Take a quiz\n`!quiz [course] [module]` - Take module quiz",
+        value="`/lesson [course] [module] [lesson]` - View specific lesson\n`/quiz` - Take a quiz\n`/quiz [course] [module]` - Take module quiz",
         inline=False
     )
     
     embed.add_field(
         name="📊 Progress Tracking",
-        value="`!progress` - Check your progress\n`!achievements` - View your badges\n`!stats` - Quiz statistics\n`!leaderboard` - Top learners",
+        value="`/progress` - Check your progress\n`/achievements` - View your badges\n`/stats` - Quiz statistics\n`/leaderboard` - Top learners",
         inline=False
     )
     
     embed.add_field(
         name="🛠️ Admin Commands",
-        value="`!admin` - Admin control panel (admins only)\n`!admin_award @user achievement` - Award achievement\n`!admin_xp @user amount` - Award XP",
+        value="`/admin` - Admin control panel (admins only)\n`/admin_award @user achievement` - Award achievement\n`/admin_xp @user amount` - Award XP",
         inline=False
     )
     
     embed.set_footer(text="Need more help? Ask in the community channels!")
     
-    await ctx.send(embed=embed)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # Add admin commands (will be added when bot starts)
 async def setup_cogs():
@@ -792,7 +799,7 @@ async def on_command_error(ctx, error):
     elif isinstance(error, commands.MissingRequiredArgument):
         embed = discord.Embed(
             title="❌ Missing Arguments",
-            description=f"Missing required arguments. Use `!help_cyber` for command usage.",
+            description=f"Missing required arguments. Use `/help` for command usage.",
             color=0xFF0000
         )
         await ctx.send(embed=embed)
