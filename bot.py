@@ -48,10 +48,14 @@ class CourseSelectionView(View):
     
     async def select_course(self, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
-            await interaction.response.send_message(
-                "❌ This isn't your course selection! Use `!start` to begin your own journey.",
-                ephemeral=True
-            )
+            try:
+                await interaction.response.send_message(
+                    "❌ This isn't your course selection! Use `!start` to begin your own journey.",
+                    ephemeral=True
+                )
+            except discord.errors.NotFound:
+                # Interaction expired, ignore
+                pass
             return
         
         # Extract course ID from custom_id
@@ -61,14 +65,20 @@ class CourseSelectionView(View):
         # Update user's progress to start this course
         db.update_user_progress(self.user_id, course_id, 1, 1)
         
-        await interaction.response.send_message(
-            f"🎉 Great choice! You've selected **{course['title']}**\n"
-            f"📖 Starting your first lesson...",
-            ephemeral=True
-        )
-        
-        # Show the first lesson
-        await show_lesson(interaction.followup, course_id, 1, 1, self.user_id)
+        try:
+            await interaction.response.send_message(
+                f"🎉 Great choice! You've selected **{course['title']}**\n"
+                f"📖 Starting your first lesson...",
+                ephemeral=True
+            )
+            
+            # Show the first lesson
+            await show_lesson(interaction.followup, course_id, 1, 1, self.user_id)
+        except discord.errors.NotFound:
+            # Interaction expired, send a new message instead
+            channel = interaction.channel if hasattr(interaction, 'channel') else None
+            if channel:
+                await show_lesson(channel, course_id, 1, 1, self.user_id)
 
 class LessonView(View):
     def __init__(self, user_id: int, course_id: int, module_id: int, lesson_id: int):
@@ -81,16 +91,24 @@ class LessonView(View):
     @discord.ui.button(label="✅ Complete Lesson", style=discord.ButtonStyle.green)
     async def complete_lesson(self, interaction: discord.Interaction, button: Button):
         if interaction.user.id != self.user_id:
-            await interaction.response.send_message(
-                "❌ This isn't your lesson! Use `!start` to begin your own journey.",
-                ephemeral=True
-            )
+            try:
+                await interaction.response.send_message(
+                    "❌ This isn't your lesson! Use `!start` to begin your own journey.",
+                    ephemeral=True
+                )
+            except discord.errors.NotFound:
+                # Interaction expired, ignore
+                pass
             return
         
         # Get lesson data
         lesson = get_lesson(self.course_id, self.module_id, self.lesson_id)
         if not lesson:
-            await interaction.response.send_message("❌ Lesson not found.", ephemeral=True)
+            try:
+                await interaction.response.send_message("❌ Lesson not found.", ephemeral=True)
+            except discord.errors.NotFound:
+                # Interaction expired, ignore
+                pass
             return
         
         # Add user to database if not exists
@@ -163,10 +181,20 @@ class LessonView(View):
             # Add next lesson button
             async def next_lesson_callback(inter):
                 if inter.user.id != self.user_id:
-                    await inter.response.send_message("❌ This isn't your journey!", ephemeral=True)
+                    try:
+                        await inter.response.send_message("❌ This isn't your journey!", ephemeral=True)
+                    except discord.errors.NotFound:
+                        # Interaction expired, ignore
+                        pass
                     return
-                await inter.response.send_message("📖 Loading next lesson...", ephemeral=True)
-                await show_lesson(inter.followup, next_course_id, next_module_id, next_lesson_id, self.user_id)
+                try:
+                    await inter.response.send_message("📖 Loading next lesson...", ephemeral=True)
+                    await show_lesson(inter.followup, next_course_id, next_module_id, next_lesson_id, self.user_id)
+                except discord.errors.NotFound:
+                    # Interaction expired, send a new message instead
+                    channel = inter.channel if hasattr(inter, 'channel') else None
+                    if channel:
+                        await show_lesson(channel, next_course_id, next_module_id, next_lesson_id, self.user_id)
             
             next_button = Button(label=next_button_label, style=discord.ButtonStyle.primary)
             next_button.callback = next_lesson_callback
@@ -181,16 +209,32 @@ class LessonView(View):
         # Add browse courses button
         async def browse_courses_callback(inter):
             if inter.user.id != self.user_id:
-                await inter.response.send_message("❌ This isn't your journey!", ephemeral=True)
+                try:
+                    await inter.response.send_message("❌ This isn't your journey!", ephemeral=True)
+                except discord.errors.NotFound:
+                    # Interaction expired, ignore
+                    pass
                 return
-            await inter.response.send_message("📚 Loading course catalog...", ephemeral=True)
-            await list_courses_with_selection(inter.followup, self.user_id)
+            try:
+                await inter.response.send_message("📚 Loading course catalog...", ephemeral=True)
+                await list_courses_with_selection(inter.followup, self.user_id)
+            except discord.errors.NotFound:
+                # Interaction expired, send a new message instead
+                channel = inter.channel if hasattr(inter, 'channel') else None
+                if channel:
+                    await list_courses_with_selection(channel, self.user_id)
         
         browse_button = Button(label="📚 Browse Courses", style=discord.ButtonStyle.secondary)
         browse_button.callback = browse_courses_callback
         new_view.add_item(browse_button)
         
-        await interaction.response.edit_message(embed=embed, view=new_view)
+        try:
+            await interaction.response.edit_message(embed=embed, view=new_view)
+        except discord.errors.NotFound:
+            # Interaction expired, send a new message instead
+            channel = interaction.channel if hasattr(interaction, 'channel') else None
+            if channel:
+                await channel.send(embed=embed, view=new_view)
         
         # Send DM with achievement notifications
         if new_achievements:
@@ -212,30 +256,46 @@ class LessonView(View):
     @discord.ui.button(label="❓ Take Quiz", style=discord.ButtonStyle.primary)
     async def take_quiz(self, interaction: discord.Interaction, button: Button):
         if interaction.user.id != self.user_id:
-            await interaction.response.send_message(
-                "❌ This isn't your lesson! Use `!start` to begin your own journey.",
-                ephemeral=True
-            )
+            try:
+                await interaction.response.send_message(
+                    "❌ This isn't your lesson! Use `!start` to begin your own journey.",
+                    ephemeral=True
+                )
+            except discord.errors.NotFound:
+                # Interaction expired, ignore
+                pass
             return
         
         # Check if lesson has a quiz
         lesson = get_lesson(self.course_id, self.module_id, self.lesson_id)
         if not lesson or "quiz" not in lesson:
-            await interaction.response.send_message(
-                "❌ This lesson doesn't have a quiz available.",
-                ephemeral=True
-            )
+            try:
+                await interaction.response.send_message(
+                    "❌ This lesson doesn't have a quiz available.",
+                    ephemeral=True
+                )
+            except discord.errors.NotFound:
+                # Interaction expired, ignore
+                pass
             return
         
-        await interaction.response.send_message(
-            "🎯 Starting quiz... Check the new message below!",
-            ephemeral=True
-        )
-        
-        # Start the quiz
-        await quiz_manager.start_lesson_quiz(
-            interaction.followup, self.course_id, self.module_id, self.lesson_id
-        )
+        try:
+            await interaction.response.send_message(
+                "🎯 Starting quiz... Check the new message below!",
+                ephemeral=True
+            )
+            
+            # Start the quiz
+            await quiz_manager.start_lesson_quiz(
+                interaction.followup, self.course_id, self.module_id, self.lesson_id, self.user_id
+            )
+        except discord.errors.NotFound:
+            # Interaction expired, send quiz directly to channel
+            channel = interaction.channel if hasattr(interaction, 'channel') else None
+            if channel:
+                await quiz_manager.start_lesson_quiz(
+                    channel, self.course_id, self.module_id, self.lesson_id, self.user_id
+                )
 
 @bot.event
 async def on_ready():
@@ -340,19 +400,29 @@ async def start_journey(ctx):
         
         async def continue_lesson(interaction):
             if interaction.user.id != ctx.author.id:
-                await interaction.response.send_message(
-                    "❌ This isn't your journey! Use `!start` to begin your own.",
-                    ephemeral=True
-                )
+                try:
+                    await interaction.response.send_message(
+                        "❌ This isn't your journey! Use `!start` to begin your own.",
+                        ephemeral=True
+                    )
+                except discord.errors.NotFound:
+                    # Interaction expired, ignore
+                    pass
                 return
             
-            await interaction.response.send_message(
-                f"📖 Loading lesson: **{lesson['title']}**...",
-                ephemeral=True
-            )
-            
-            # Show the lesson
-            await show_lesson(interaction.followup, current_course, current_module, current_lesson, ctx.author.id)
+            try:
+                await interaction.response.send_message(
+                    f"📖 Loading lesson: **{lesson['title']}**...",
+                    ephemeral=True
+                )
+                
+                # Show the lesson
+                await show_lesson(interaction.followup, current_course, current_module, current_lesson, ctx.author.id)
+            except discord.errors.NotFound:
+                # Interaction expired, send lesson directly to channel
+                channel = interaction.channel if hasattr(interaction, 'channel') else None
+                if channel:
+                    await show_lesson(channel, current_course, current_module, current_lesson, ctx.author.id)
         
         continue_button = Button(label="📖 Continue Learning", style=discord.ButtonStyle.green)
         continue_button.callback = continue_lesson
@@ -361,10 +431,20 @@ async def start_journey(ctx):
         # Add course selection button for existing users too
         async def select_new_course(interaction):
             if interaction.user.id != ctx.author.id:
-                await interaction.response.send_message("❌ This isn't your journey!", ephemeral=True)
+                try:
+                    await interaction.response.send_message("❌ This isn't your journey!", ephemeral=True)
+                except discord.errors.NotFound:
+                    # Interaction expired, ignore
+                    pass
                 return
-            await interaction.response.send_message("📚 Loading course selection...", ephemeral=True)
-            await list_courses_with_selection(interaction.followup, ctx.author.id)
+            try:
+                await interaction.response.send_message("📚 Loading course selection...", ephemeral=True)
+                await list_courses_with_selection(interaction.followup, ctx.author.id)
+            except discord.errors.NotFound:
+                # Interaction expired, send course selection directly to channel
+                channel = interaction.channel if hasattr(interaction, 'channel') else None
+                if channel:
+                    await list_courses_with_selection(channel, ctx.author.id)
         
         course_button = Button(label="📚 Choose Different Course", style=discord.ButtonStyle.secondary)
         course_button.callback = select_new_course

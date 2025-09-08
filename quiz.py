@@ -335,7 +335,7 @@ class QuizManager:
     def __init__(self):
         self.db = db
     
-    async def start_lesson_quiz(self, ctx, course_id: int, module_id: int, lesson_id: int):
+    async def start_lesson_quiz(self, ctx, course_id: int, module_id: int, lesson_id: int, user_id: int = None):
         """Start a quiz for a specific lesson"""
         lesson = get_lesson(course_id, module_id, lesson_id)
         
@@ -370,8 +370,16 @@ class QuizManager:
         
         embed.set_footer(text="You have 5 minutes to answer!")
         
+        # Determine user_id - handle both regular context and webhook context
+        if user_id is None:
+            if hasattr(ctx, 'author'):
+                user_id = ctx.author.id
+            else:
+                # This shouldn't happen, but provide a fallback
+                raise ValueError("user_id must be provided when using webhook context")
+        
         # Create view with buttons
-        view = QuizView(quiz_data, ctx.author.id, course_id, module_id, lesson_id)
+        view = QuizView(quiz_data, user_id, course_id, module_id, lesson_id)
         
         await ctx.send(embed=embed, view=view)
     
