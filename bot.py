@@ -22,6 +22,7 @@ from quiz import quiz_manager
 from admin import AdminCommands
 from ctf import ctf_manager, CTFChallengeView
 from multimedia import multimedia_manager
+from training_session import training_session_manager
 
 # Bot configuration
 PREFIX = "!"
@@ -770,7 +771,7 @@ async def help_command(interaction: discord.Interaction):
     
     embed.add_field(
         name="📊 Progress Tracking",
-        value="`/progress` - Check your progress\n`/achievements` - View your badges\n`/stats` - Quiz statistics\n`/leaderboard` - Top learners",
+        value="`/progress` - Check your progress\n`/achievements` - View your badges\n`/stats` - Quiz statistics\n`/leaderboard` - Top learners\n`/sessions` - Manage saved training sessions",
         inline=False
     )
     
@@ -979,6 +980,21 @@ async def xp_gates_command(interaction: discord.Interaction):
     )
     
     await interaction.response.send_message(embed=embed)
+
+@bot.tree.command(name="sessions", description="📚 View and manage your saved training sessions")
+async def sessions_command(interaction: discord.Interaction):
+    """View and manage saved training sessions"""
+    user_id = interaction.user.id
+    
+    # Register user if not exists
+    db.add_user(user_id, interaction.user.display_name)
+    
+    embed, view = training_session_manager.create_session_embed(user_id)
+    
+    if view:
+        await interaction.response.send_message(embed=embed, view=view)
+    else:
+        await interaction.response.send_message(embed=embed)
 
 @bot.event
 async def on_command_error(ctx, error):
