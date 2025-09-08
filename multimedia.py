@@ -282,6 +282,14 @@ class MultimediaView(View):
             )
             quiz_btn.callback = self.start_phishing_quiz
             self.add_item(quiz_btn)
+        
+        # Add stop & save button
+        stop_btn = Button(
+            label="⏸️ Stop & Save",
+            style=discord.ButtonStyle.danger
+        )
+        stop_btn.callback = self.stop_multimedia
+        self.add_item(stop_btn)
     
     async def previous_content(self, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
@@ -360,6 +368,57 @@ class MultimediaView(View):
             embed.set_footer(text=f"Content {self.current_index + 1} of {len(self.content_list)}")
         
         return embed
+    
+    async def stop_multimedia(self, interaction: discord.Interaction):
+        """Stop and save multimedia session"""
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ This isn't your content!", ephemeral=True)
+            return
+        
+        # Import here to avoid circular imports
+        from training_session import training_session_manager
+        from datetime import datetime
+        
+        current_content = self.content_list[self.current_index]
+        
+        # Save multimedia session
+        current_position = {
+            'content_type': self.content_type,
+            'current_index': self.current_index,
+            'total_items': len(self.content_list)
+        }
+        session_data = {
+            'current_content_title': current_content['title'],
+            'current_content_description': current_content['description'],
+            'saved_at': str(datetime.now())
+        }
+        
+        success = training_session_manager.save_session(
+            self.user_id, 
+            'multimedia', 
+            current_position, 
+            session_data
+        )
+        
+        if success:
+            embed = discord.Embed(
+                title="⏸️ Multimedia Session Saved",
+                description=f"Your multimedia session has been saved. Resume anytime with `/multimedia {self.content_type}` or `/sessions`.",
+                color=0x00FF00
+            )
+            embed.add_field(
+                name="Saved Position",
+                value=f"{current_content['title']} ({self.current_index + 1}/{len(self.content_list)})",
+                inline=False
+            )
+        else:
+            embed = discord.Embed(
+                title="❌ Save Failed",
+                description="Failed to save your multimedia session. Please try again.",
+                color=0xFF0000
+            )
+        
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 class MultimediaManager:
     def __init__(self):

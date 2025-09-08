@@ -22,7 +22,7 @@ from quiz import quiz_manager
 from admin import AdminCommands
 from ctf import ctf_manager, CTFChallengeView
 from multimedia import multimedia_manager
-from training_session import training_session_manager
+from training_session import training_session_manager, StopResumeView
 
 # Bot configuration
 PREFIX = "!"
@@ -90,6 +90,50 @@ class LessonView(View):
         self.course_id = course_id
         self.module_id = module_id
         self.lesson_id = lesson_id
+    
+    @discord.ui.button(label="⏸️ Stop & Save", style=discord.ButtonStyle.secondary)
+    async def stop_lesson(self, interaction: discord.Interaction, button: Button):
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ This isn't your lesson!", ephemeral=True)
+            return
+        
+        # Save lesson session
+        current_position = {
+            'course': self.course_id,
+            'module': self.module_id,
+            'lesson': self.lesson_id
+        }
+        session_data = {
+            'lesson_title': get_lesson(self.course_id, self.module_id, self.lesson_id)['title'],
+            'saved_at': str(datetime.now())
+        }
+        
+        success = training_session_manager.save_session(
+            self.user_id, 
+            'lesson', 
+            current_position, 
+            session_data
+        )
+        
+        if success:
+            embed = discord.Embed(
+                title="⏸️ Lesson Session Saved",
+                description=f"Your lesson progress has been saved. Resume anytime with `/lesson` or `/sessions`.",
+                color=0x00FF00
+            )
+            embed.add_field(
+                name="Saved Position",
+                value=f"Course {self.course_id}, Module {self.module_id}, Lesson {self.lesson_id}",
+                inline=False
+            )
+        else:
+            embed = discord.Embed(
+                title="❌ Save Failed",
+                description="Failed to save your lesson session. Please try again.",
+                color=0xFF0000
+            )
+        
+        await interaction.response.send_message(embed=embed, ephemeral=True)
     
     @discord.ui.button(label="✅ Complete Lesson", style=discord.ButtonStyle.green)
     async def complete_lesson(self, interaction: discord.Interaction, button: Button):

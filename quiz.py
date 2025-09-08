@@ -7,6 +7,7 @@ import discord
 from discord.ui import Button, View
 import asyncio
 import random
+from datetime import datetime
 from database import db
 from achievements import achievement_manager
 from courses import get_lesson
@@ -31,6 +32,15 @@ class QuizView(View):
             )
             button.callback = self.create_callback(i)
             self.add_item(button)
+        
+        # Add stop & save button
+        stop_button = Button(
+            label="⏸️ Stop & Save Quiz",
+            style=discord.ButtonStyle.danger,
+            custom_id="stop_quiz"
+        )
+        stop_button.callback = self.stop_quiz
+        self.add_item(stop_button)
     
     def create_callback(self, option_index: int):
         """Create callback function for quiz option button"""
@@ -113,6 +123,57 @@ class QuizView(View):
             await interaction.response.edit_message(embed=embed, view=self)
         
         return callback
+    
+    async def stop_quiz(self, interaction: discord.Interaction):
+        """Stop and save quiz progress"""
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ This isn't your quiz!", ephemeral=True)
+            return
+        
+        # Import here to avoid circular imports
+        from training_session import training_session_manager
+        
+        # Save quiz session
+        current_position = {
+            'course': self.course_id,
+            'module': self.module_id,
+            'lesson': self.lesson_id,
+            'current_question': 1,
+            'total_questions': 1
+        }
+        session_data = {
+            'quiz_question': self.quiz_data['question'],
+            'quiz_options': self.quiz_data['options'],
+            'correct_answer': self.correct_answer,
+            'saved_at': str(datetime.now())
+        }
+        
+        success = training_session_manager.save_session(
+            self.user_id, 
+            'quiz', 
+            current_position, 
+            session_data
+        )
+        
+        if success:
+            embed = discord.Embed(
+                title="⏸️ Quiz Session Saved",
+                description=f"Your quiz progress has been saved. Resume anytime with `/quiz` or `/sessions`.",
+                color=0x00FF00
+            )
+            embed.add_field(
+                name="Saved Position",
+                value=f"Course {self.course_id}, Module {self.module_id}, Lesson {self.lesson_id}",
+                inline=False
+            )
+        else:
+            embed = discord.Embed(
+                title="❌ Save Failed",
+                description="Failed to save your quiz session. Please try again.",
+                color=0xFF0000
+            )
+        
+        await interaction.response.send_message(embed=embed, ephemeral=True)
     
     async def on_timeout(self):
         """Handle quiz timeout"""
