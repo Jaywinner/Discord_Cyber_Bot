@@ -245,9 +245,8 @@ class MultiQuizView(View):
             )
             return
         
-        # Disable all buttons
-        for item in self.children:
-            item.disabled = True
+        # Clear all existing buttons
+        self.clear_items()
         
         # Calculate results
         total_questions = len(self.questions)
@@ -300,7 +299,127 @@ class MultiQuizView(View):
                 inline=False
             )
         
+        # Add navigation buttons
+        self.add_navigation_buttons()
+        
         await interaction.response.edit_message(embed=embed, view=self)
+    
+    def add_navigation_buttons(self):
+        """Add navigation buttons after quiz completion"""
+        # Return to lesson button
+        return_button = Button(
+            label="📖 Return to Lesson",
+            style=discord.ButtonStyle.primary,
+            emoji="📖"
+        )
+        return_button.callback = self.return_to_lesson
+        self.add_item(return_button)
+        
+        # Retake quiz button
+        retake_button = Button(
+            label="🔄 Retake Quiz",
+            style=discord.ButtonStyle.secondary,
+            emoji="🔄"
+        )
+        retake_button.callback = self.retake_quiz
+        self.add_item(retake_button)
+        
+        # Browse courses button
+        browse_button = Button(
+            label="📚 Browse Courses",
+            style=discord.ButtonStyle.secondary,
+            emoji="📚"
+        )
+        browse_button.callback = self.browse_courses
+        self.add_item(browse_button)
+    
+    async def return_to_lesson(self, interaction: discord.Interaction):
+        """Return to the lesson view"""
+        if interaction.user.id != self.user_id:
+            try:
+                await interaction.response.send_message(
+                    "❌ This isn't your quiz!",
+                    ephemeral=True
+                )
+            except discord.errors.NotFound:
+                pass
+            return
+        
+        try:
+            await interaction.response.send_message(
+                "📖 Returning to lesson...",
+                ephemeral=True
+            )
+            
+            # Import here to avoid circular imports
+            from bot import show_lesson
+            await show_lesson(interaction.followup, self.course_id, self.module_id, self.lesson_id, self.user_id)
+        except discord.errors.NotFound:
+            # Interaction expired, send lesson directly to channel
+            channel = interaction.channel if hasattr(interaction, 'channel') else None
+            if channel:
+                from bot import show_lesson
+                await show_lesson(channel, self.course_id, self.module_id, self.lesson_id, self.user_id)
+    
+    async def retake_quiz(self, interaction: discord.Interaction):
+        """Retake the quiz"""
+        if interaction.user.id != self.user_id:
+            try:
+                await interaction.response.send_message(
+                    "❌ This isn't your quiz!",
+                    ephemeral=True
+                )
+            except discord.errors.NotFound:
+                pass
+            return
+        
+        try:
+            await interaction.response.send_message(
+                "🔄 Starting quiz again...",
+                ephemeral=True
+            )
+            
+            # Start the quiz again
+            quiz_manager = QuizManager()
+            await quiz_manager.start_lesson_quiz(
+                interaction.followup, self.course_id, self.module_id, self.lesson_id, self.user_id
+            )
+        except discord.errors.NotFound:
+            # Interaction expired, send quiz directly to channel
+            channel = interaction.channel if hasattr(interaction, 'channel') else None
+            if channel:
+                quiz_manager = QuizManager()
+                await quiz_manager.start_lesson_quiz(
+                    channel, self.course_id, self.module_id, self.lesson_id, self.user_id
+                )
+    
+    async def browse_courses(self, interaction: discord.Interaction):
+        """Browse available courses"""
+        if interaction.user.id != self.user_id:
+            try:
+                await interaction.response.send_message(
+                    "❌ This isn't your quiz!",
+                    ephemeral=True
+                )
+            except discord.errors.NotFound:
+                pass
+            return
+        
+        try:
+            await interaction.response.send_message(
+                "📚 Loading course catalog...",
+                ephemeral=True
+            )
+            
+            # Import here to avoid circular imports
+            from bot import list_courses_with_selection
+            await list_courses_with_selection(interaction.followup, self.user_id)
+        except discord.errors.NotFound:
+            # Interaction expired, send course list directly to channel
+            channel = interaction.channel if hasattr(interaction, 'channel') else None
+            if channel:
+                from bot import list_courses_with_selection
+                await list_courses_with_selection(channel, self.user_id)
     
     def create_question_embed(self) -> discord.Embed:
         """Create embed for current question"""

@@ -115,14 +115,66 @@ class DatabaseManager:
                 UPDATE users SET xp = ?, level = ? WHERE user_id = ?
             """, (new_xp, new_level, user_id))
             
-            # Check for level up achievement
+            # Check for level up achievement - use the same connection
             if new_level > current_level:
-                self.add_achievement(user_id, f"Level {new_level} Reached", "level_up")
+                self._add_achievement_with_connection(conn, cursor, user_id, f"Level {new_level} Reached", "level_up")
             
             conn.commit()
             return new_xp
         except Exception as e:
             print(f"Error adding XP: {e}")
+            return 0
+        finally:
+            conn.close()
+    
+    def _add_achievement_with_connection(self, conn, cursor, user_id: int, achievement_name: str, achievement_type: str):
+        """Add achievement using existing connection to prevent database locks"""
+        try:
+            # Check if achievement already exists
+            cursor.execute("""
+                SELECT id FROM achievements 
+                WHERE user_id = ? AND achievement_name = ?
+            """, (user_id, achievement_name))
+            
+            if not cursor.fetchone():
+                cursor.execute("""
+                    INSERT INTO achievements (user_id, achievement_name, achievement_type)
+                    VALUES (?, ?, ?)
+                """, (user_id, achievement_name, achievement_type))
+                return True
+            return False
+        except Exception as e:
+            print(f"Error adding achievement: {e}")
+            return False
+    
+    def add_xp_no_achievements(self, user_id: int, amount: int) -> int:
+        """Add XP to user without triggering achievement checks (to prevent recursion)"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Get current XP
+            cursor.execute("SELECT xp, level FROM users WHERE user_id = ?", (user_id,))
+            result = cursor.fetchone()
+            
+            if not result:
+                return 0
+            
+            current_xp, current_level = result
+            new_xp = current_xp + amount
+            
+            # Calculate new level (every 1000 XP = 1 level)
+            new_level = (new_xp // 1000) + 1
+            
+            # Update user (no achievement checks)
+            cursor.execute("""
+                UPDATE users SET xp = ?, level = ? WHERE user_id = ?
+            """, (new_xp, new_level, user_id))
+            
+            conn.commit()
+            return new_xp
+        except Exception as e:
+            print(f"Error adding XP (no achievements): {e}")
             return 0
         finally:
             conn.close()

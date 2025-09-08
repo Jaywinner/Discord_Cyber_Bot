@@ -203,8 +203,8 @@ class AchievementManager:
             if earned:
                 success = self.db.add_achievement(user_id, achievement["name"], achievement["type"])
                 if success:
-                    # Award bonus XP
-                    self.db.add_xp(user_id, achievement["xp_bonus"])
+                    # Award bonus XP (but don't trigger recursive achievement checks)
+                    self.db.add_xp_no_achievements(user_id, achievement["xp_bonus"])
                     awarded_achievements.append(achievement)
         
         return awarded_achievements
