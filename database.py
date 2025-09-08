@@ -115,6 +115,20 @@ class DatabaseManager:
             )
         """)
         
+        # Training sessions table for stop/resume functionality
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS training_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                session_type TEXT NOT NULL, -- 'lesson', 'quiz', 'ctf', 'multimedia'
+                current_position TEXT, -- JSON string with position data
+                session_data TEXT, -- JSON string with session state
+                paused_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (user_id)
+            )
+        """)
+        
         conn.commit()
         conn.close()
     
@@ -491,6 +505,93 @@ class DatabaseManager:
             return cursor.fetchall()
         except Exception as e:
             print(f"Error getting multimedia content: {e}")
+            return []
+        finally:
+            conn.close()
+    
+    # Training Session Management Methods
+    def save_training_session(self, user_id: int, session_type: str, current_position: str, session_data: str):
+        """Save or update a training session for stop/resume functionality"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Remove any existing session of the same type for this user
+            cursor.execute("""
+                DELETE FROM training_sessions 
+                WHERE user_id = ? AND session_type = ?
+            """, (user_id, session_type))
+            
+            # Insert new session
+            cursor.execute("""
+                INSERT INTO training_sessions (user_id, session_type, current_position, session_data)
+                VALUES (?, ?, ?, ?)
+            """, (user_id, session_type, current_position, session_data))
+            
+            conn.commit()
+            return True
+        except Exception as e:
+            print(f"Error saving training session: {e}")
+            return False
+        finally:
+            conn.close()
+    
+    def get_training_session(self, user_id: int, session_type: str):
+        """Get a saved training session"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("""
+                SELECT current_position, session_data, paused_at 
+                FROM training_sessions 
+                WHERE user_id = ? AND session_type = ?
+                ORDER BY paused_at DESC
+                LIMIT 1
+            """, (user_id, session_type))
+            
+            return cursor.fetchone()
+        except Exception as e:
+            print(f"Error getting training session: {e}")
+            return None
+        finally:
+            conn.close()
+    
+    def delete_training_session(self, user_id: int, session_type: str):
+        """Delete a training session (when completed)"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("""
+                DELETE FROM training_sessions 
+                WHERE user_id = ? AND session_type = ?
+            """, (user_id, session_type))
+            
+            conn.commit()
+            return True
+        except Exception as e:
+            print(f"Error deleting training session: {e}")
+            return False
+        finally:
+            conn.close()
+    
+    def get_user_training_sessions(self, user_id: int):
+        """Get all saved training sessions for a user"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("""
+                SELECT session_type, current_position, paused_at 
+                FROM training_sessions 
+                WHERE user_id = ?
+                ORDER BY paused_at DESC
+            """, (user_id,))
+            
+            return cursor.fetchall()
+        except Exception as e:
+            print(f"Error getting user training sessions: {e}")
             return []
         finally:
             conn.close()

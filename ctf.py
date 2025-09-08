@@ -178,6 +178,15 @@ class CTFChallengeView(View):
         )
         hint_button.callback = self.show_hint
         self.add_item(hint_button)
+        
+        # Add stop & save button
+        stop_button = Button(
+            label="⏸️ Stop & Save",
+            style=discord.ButtonStyle.danger,
+            emoji="⏸️"
+        )
+        stop_button.callback = self.stop_ctf
+        self.add_item(stop_button)
     
     async def submit_flag(self, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
@@ -203,6 +212,56 @@ class CTFChallengeView(View):
             description=self.challenge_data.get('hints', 'No hints available for this challenge.'),
             color=0xFFFF00
         )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+    
+    async def stop_ctf(self, interaction: discord.Interaction):
+        """Stop and save CTF challenge progress"""
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ This isn't your challenge!", ephemeral=True)
+            return
+        
+        # Import here to avoid circular imports
+        from training_session import training_session_manager
+        from datetime import datetime
+        
+        # Save CTF session
+        current_position = {
+            'challenge_id': self.challenge_data['id'],
+            'challenge_name': self.challenge_data['name'],
+            'category': self.challenge_data['category']
+        }
+        session_data = {
+            'challenge_description': self.challenge_data['description'],
+            'difficulty': self.challenge_data['difficulty'],
+            'points': self.challenge_data['points'],
+            'saved_at': str(datetime.now())
+        }
+        
+        success = training_session_manager.save_session(
+            self.user_id, 
+            'ctf', 
+            current_position, 
+            session_data
+        )
+        
+        if success:
+            embed = discord.Embed(
+                title="⏸️ CTF Challenge Session Saved",
+                description=f"Your CTF challenge progress has been saved. Resume anytime with `/ctf {self.challenge_data['id']}` or `/sessions`.",
+                color=0x00FF00
+            )
+            embed.add_field(
+                name="Saved Challenge",
+                value=f"{self.challenge_data['name']} ({self.challenge_data['category']})",
+                inline=False
+            )
+        else:
+            embed = discord.Embed(
+                title="❌ Save Failed",
+                description="Failed to save your CTF challenge session. Please try again.",
+                color=0xFF0000
+            )
+        
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 class CTFManager:

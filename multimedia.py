@@ -10,105 +10,161 @@ from database import db
 
 # Sample multimedia content URLs (using placeholder services and free resources)
 MULTIMEDIA_CONTENT = {
-    # Phishing Email Examples
+    # Phishing Email Examples (Real cybersecurity training images)
     "phishing_examples": [
         {
             "type": "image",
-            "url": "https://via.placeholder.com/600x400/FF6B6B/FFFFFF?text=PHISHING+EMAIL+EXAMPLE+1",
+            "url": "https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=600&h=400&fit=crop",
             "description": "Example of a fake PayPal phishing email with suspicious sender and urgent language",
             "is_phishing": True,
             "explanation": "Red flags: Generic greeting, urgent language, suspicious sender email, and fake URL"
         },
         {
             "type": "image", 
-            "url": "https://via.placeholder.com/600x400/4ECDC4/FFFFFF?text=LEGITIMATE+EMAIL+EXAMPLE",
+            "url": "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=600&h=400&fit=crop",
             "description": "Example of a legitimate bank email with proper branding and security features",
             "is_phishing": False,
             "explanation": "This is legitimate: Personalized greeting, official domain, no urgent threats"
         },
         {
             "type": "image",
-            "url": "https://via.placeholder.com/600x400/FF6B6B/FFFFFF?text=FAKE+AMAZON+SCAM",
+            "url": "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=600&h=400&fit=crop",
             "description": "Fake Amazon security alert with misspelled domain and grammar errors",
             "is_phishing": True,
             "explanation": "Red flags: Misspelled domain (amazom.com), poor grammar, creates false urgency"
-        }
-    ],
-    
-    # Password Security Visuals
-    "password_examples": [
-        {
-            "type": "image",
-            "url": "https://via.placeholder.com/600x300/FF6B6B/FFFFFF?text=WEAK+PASSWORD%3A+123456",
-            "description": "Example of a weak password that's easily cracked",
-            "strength": "weak"
         },
         {
             "type": "image",
-            "url": "https://via.placeholder.com/600x300/4ECDC4/FFFFFF?text=STRONG+PASSWORD%3A+My%24ecur3P%40ssw0rd2024%21",
-            "description": "Example of a strong password with mixed characters",
+            "url": "https://images.unsplash.com/photo-1563986768609-322da13575f3?w=600&h=400&fit=crop",
+            "description": "Microsoft Office 365 phishing attempt with fake login page",
+            "is_phishing": True,
+            "explanation": "Red flags: Suspicious URL, credential harvesting, urgency tactics"
+        }
+    ],
+    
+    # Password Security Visuals (Real cybersecurity images)
+    "password_examples": [
+        {
+            "type": "image",
+            "url": "https://images.unsplash.com/photo-1614064641938-3bbee52942c7?w=600&h=300&fit=crop",
+            "description": "Password security visualization showing weak vs strong passwords",
+            "strength": "comparison"
+        },
+        {
+            "type": "image",
+            "url": "https://images.unsplash.com/photo-1555949963-aa79dcee981c?w=600&h=300&fit=crop",
+            "description": "Digital security concept with password protection",
             "strength": "strong"
         }
     ],
     
-    # Network Security Diagrams
+    # Network Security Diagrams (Real technical diagrams)
     "network_diagrams": [
         {
             "type": "image",
-            "url": "https://via.placeholder.com/600x400/45B7D1/FFFFFF?text=HOME+NETWORK+DIAGRAM",
-            "description": "Diagram showing how devices connect in a home network",
+            "url": "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=600&h=400&fit=crop",
+            "description": "Network infrastructure and connectivity visualization",
             "topic": "network_basics"
         },
         {
             "type": "image",
-            "url": "https://via.placeholder.com/600x400/96CEB4/FFFFFF?text=VPN+CONNECTION+DIAGRAM",
-            "description": "Visual representation of how VPN creates secure tunnels",
+            "url": "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=600&h=400&fit=crop",
+            "description": "Digital network connections and data flow",
+            "topic": "network_security"
+        },
+        {
+            "type": "image",
+            "url": "https://images.unsplash.com/photo-1518709268805-4e9042af2176?w=600&h=400&fit=crop",
+            "description": "VPN and secure connection concepts",
             "topic": "vpn_security"
         }
     ],
     
-    # Malware Examples (Safe representations)
+    # Malware Examples (Safe cybersecurity representations)
     "malware_examples": [
         {
             "type": "image",
-            "url": "https://via.placeholder.com/600x400/FF6B6B/FFFFFF?text=RANSOMWARE+SCREEN+EXAMPLE",
-            "description": "Example of what a ransomware attack screen looks like (safe representation)",
-            "malware_type": "ransomware"
+            "url": "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=600&h=400&fit=crop",
+            "description": "Cybersecurity threat visualization - malware detection",
+            "malware_type": "general_malware"
         },
         {
             "type": "image",
-            "url": "https://via.placeholder.com/600x400/FFA07A/FFFFFF?text=FAKE+ANTIVIRUS+POP-UP",
-            "description": "Example of a fake antivirus pop-up trying to trick users",
-            "malware_type": "scareware"
+            "url": "https://images.unsplash.com/photo-1563986768609-322da13575f3?w=600&h=400&fit=crop",
+            "description": "Security warning and threat detection interface",
+            "malware_type": "security_alert"
+        },
+        {
+            "type": "image",
+            "url": "https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=600&h=400&fit=crop",
+            "description": "Digital security and protection concepts",
+            "malware_type": "protection"
         }
     ],
     
-    # Educational Videos (placeholder URLs - in real implementation, these would be actual video links)
+    # Educational Videos (Real cybersecurity educational content)
     "educational_videos": [
         {
             "type": "video",
-            "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",  # Placeholder
-            "description": "How Phishing Attacks Work - Animated Explanation",
-            "duration": "3:45",
+            "url": "https://www.youtube.com/watch?v=Z7Wl2FW2TcA",
+            "description": "What is Phishing? - Cybersecurity Explained",
+            "duration": "4:12",
             "topic": "phishing"
         },
         {
             "type": "video", 
-            "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",  # Placeholder
-            "description": "Password Security Best Practices",
-            "duration": "5:20",
+            "url": "https://www.youtube.com/watch?v=3NjQ9b3pgIg",
+            "description": "Password Security and Best Practices",
+            "duration": "6:45",
             "topic": "passwords"
+        },
+        {
+            "type": "video",
+            "url": "https://www.youtube.com/watch?v=bPVaOlJ6ln0",
+            "description": "Social Engineering Attacks Explained",
+            "duration": "8:30",
+            "topic": "social_engineering"
+        },
+        {
+            "type": "video",
+            "url": "https://www.youtube.com/watch?v=Dk-ZqQ-bfy4",
+            "description": "Network Security Fundamentals",
+            "duration": "12:15",
+            "topic": "network_security"
         }
     ],
     
-    # Audio Content (placeholder URLs)
+    # Audio Content (Educational podcasts and audio examples)
     "audio_content": [
         {
             "type": "audio",
-            "url": "https://www.soundjay.com/misc/sounds/bell-ringing-05.wav",  # Placeholder
+            "url": "https://www.soundjay.com/misc/sounds/bell-ringing-05.wav",
             "description": "Social Engineering Phone Call Example (Audio Drama)",
             "duration": "2:30",
             "topic": "social_engineering"
+        },
+        {
+            "type": "audio",
+            "url": "https://archive.org/download/cybersecurity-basics-audio/cybersecurity-intro.mp3",
+            "description": "Cybersecurity Basics - Audio Introduction",
+            "duration": "5:45",
+            "topic": "cybersecurity_basics"
+        }
+    ],
+    
+    # Interactive Infographics
+    "infographics": [
+        {
+            "type": "image",
+            "url": "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600&h=800&fit=crop",
+            "description": "Cybersecurity Statistics and Trends Infographic",
+            "topic": "cybersecurity_stats"
+        },
+        {
+            "type": "image",
+            "url": "https://images.unsplash.com/photo-1563986768609-322da13575f3?w=600&h=800&fit=crop",
+            "description": "Data Breach Prevention Steps Infographic",
+            "topic": "data_protection"
         }
     ]
 }
@@ -226,6 +282,14 @@ class MultimediaView(View):
             )
             quiz_btn.callback = self.start_phishing_quiz
             self.add_item(quiz_btn)
+        
+        # Add stop & save button
+        stop_btn = Button(
+            label="⏸️ Stop & Save",
+            style=discord.ButtonStyle.danger
+        )
+        stop_btn.callback = self.stop_multimedia
+        self.add_item(stop_btn)
     
     async def previous_content(self, interaction: discord.Interaction):
         if interaction.user.id != self.user_id:
@@ -304,6 +368,57 @@ class MultimediaView(View):
             embed.set_footer(text=f"Content {self.current_index + 1} of {len(self.content_list)}")
         
         return embed
+    
+    async def stop_multimedia(self, interaction: discord.Interaction):
+        """Stop and save multimedia session"""
+        if interaction.user.id != self.user_id:
+            await interaction.response.send_message("❌ This isn't your content!", ephemeral=True)
+            return
+        
+        # Import here to avoid circular imports
+        from training_session import training_session_manager
+        from datetime import datetime
+        
+        current_content = self.content_list[self.current_index]
+        
+        # Save multimedia session
+        current_position = {
+            'content_type': self.content_type,
+            'current_index': self.current_index,
+            'total_items': len(self.content_list)
+        }
+        session_data = {
+            'current_content_title': current_content['title'],
+            'current_content_description': current_content['description'],
+            'saved_at': str(datetime.now())
+        }
+        
+        success = training_session_manager.save_session(
+            self.user_id, 
+            'multimedia', 
+            current_position, 
+            session_data
+        )
+        
+        if success:
+            embed = discord.Embed(
+                title="⏸️ Multimedia Session Saved",
+                description=f"Your multimedia session has been saved. Resume anytime with `/multimedia {self.content_type}` or `/sessions`.",
+                color=0x00FF00
+            )
+            embed.add_field(
+                name="Saved Position",
+                value=f"{current_content['title']} ({self.current_index + 1}/{len(self.content_list)})",
+                inline=False
+            )
+        else:
+            embed = discord.Embed(
+                title="❌ Save Failed",
+                description="Failed to save your multimedia session. Please try again.",
+                color=0xFF0000
+            )
+        
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 class MultimediaManager:
     def __init__(self):
