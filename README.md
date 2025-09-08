@@ -1,30 +1,41 @@
 # 🛡️ Discord Cyber Academy Bot
 
-An interactive Discord bot designed to teach cybersecurity fundamentals through gamified learning experiences. Perfect for Discord communities, educational servers, and anyone looking to learn cybersecurity in an engaging way.
+A comprehensive, interactive Discord bot designed to teach cybersecurity fundamentals through gamified learning experiences. Features professional multimedia content, session management, and hands-on challenges. Perfect for Discord communities, educational servers, and anyone looking to master cybersecurity skills.
 
 ## ✨ Features
 
-### 🎓 Interactive Learning
-- **Structured Courses**: Multiple cybersecurity courses from beginner to intermediate
-- **Hands-on Lessons**: Practical exercises and real-world examples
-- **Interactive Quizzes**: Test knowledge with immediate feedback
+### 🎓 Interactive Learning Platform
+- **Structured Courses**: Multiple cybersecurity courses from beginner to advanced
+- **Hands-on Lessons**: Practical exercises with real-world examples
+- **Interactive Quizzes**: Test knowledge with immediate feedback and explanations
+- **CTF Challenges**: Capture-the-flag style security challenges
+- **Professional Multimedia**: Real cybersecurity images and visual content
 - **Progress Tracking**: Monitor learning journey and achievements
 
-### 🎮 Gamification
-- **XP System**: Earn experience points for completing lessons
+### 🔄 Session Management System
+- **⏸️ Stop & Resume**: Pause training anytime and resume exactly where you left off
+- **Session Persistence**: Training progress survives bot restarts and Discord outages
+- **Multi-Session Support**: Save multiple training sessions across different content types
+- **Smart Recovery**: Automatic session restoration with detailed progress tracking
+
+### 🎮 Gamification & Engagement
+- **XP System**: Earn experience points for completing lessons and challenges
 - **Level Progression**: Advance through levels as you learn
 - **Achievement Badges**: Unlock special achievements for milestones
 - **Leaderboards**: Compete with other learners in your server
+- **Interactive UI**: Modern Discord embeds with responsive buttons
 
 ### 🔧 Advanced Features
+- **Slash Commands**: Modern Discord slash command interface
 - **Course Selection**: Choose your learning path from available courses
 - **Smart Navigation**: Seamless progression between lessons and courses
-- **Admin Commands**: Manage content and users (admin only)
-- **Modern UI**: Beautiful Discord embeds with interactive buttons
+- **Admin Dashboard**: Comprehensive management tools (admin only)
+- **Database Persistence**: SQLite-based data storage with session management
 
-## 📚 Course Structure
+## 📚 Learning Content
 
-### Beginner Level
+### 🎓 Structured Courses
+#### Beginner Level
 1. **🛡️ Cybersecurity Fundamentals**
    - What is Cybersecurity?
    - Common Cyber Threats
@@ -40,7 +51,7 @@ An interactive Discord bot designed to teach cybersecurity fundamentals through 
    - Social Engineering Tactics
    - Safe Browsing Practices
 
-### Intermediate Level
+#### Intermediate Level
 4. **🌐 Network Security Basics**
    - Understanding Networks
    - Firewalls and VPNs
@@ -55,6 +66,20 @@ An interactive Discord bot designed to teach cybersecurity fundamentals through 
    - Data Protection
    - Privacy Settings
    - Anonymous Browsing
+
+### 🚩 CTF Challenges
+- **Beginner**: Basic security concepts and tools
+- **Intermediate**: Network analysis and cryptography
+- **Advanced**: Reverse engineering and exploitation
+- **Expert**: Advanced persistent threats and forensics
+
+### 🎥 Multimedia Learning
+- **🎣 Phishing Examples**: Real-world phishing email screenshots
+- **🔐 Password Demonstrations**: Visual password strength examples
+- **🌐 Network Diagrams**: Security architecture visualizations
+- **🦠 Malware Analysis**: Safe malware behavior examples
+- **📚 Educational Videos**: Curated cybersecurity content
+- **🎵 Audio Content**: Podcasts and security briefings
 
 ## 🚀 Quick Start
 
@@ -97,35 +122,59 @@ An interactive Discord bot designed to teach cybersecurity fundamentals through 
 
 2. **Set Bot Permissions**
    - In the "OAuth2" > "URL Generator" section
-   - Select "bot" scope
+   - Select "bot" and "applications.commands" scopes
    - Select these permissions:
      - Send Messages
      - Use Slash Commands
      - Embed Links
      - Read Message History
      - Add Reactions
+     - Attach Files
+     - Use External Emojis
 
 3. **Invite Bot to Server**
    - Use the generated URL to invite the bot to your server
    - Make sure the bot has the necessary permissions
 
+4. **Sync Slash Commands**
+   - After starting the bot, slash commands will automatically sync
+   - Commands may take up to 1 hour to appear globally
+   - For immediate testing, set `GUILD_ID` in your `.env` file
+
 ## 🎯 Commands
 
-### User Commands
-- `!start` - Begin your cybersecurity learning journey
-- `!lesson [course] [module] [lesson]` - View a specific lesson or your current lesson
-- `!courses` - Browse all available courses
-- `!quiz [course] [module] [lesson]` - Take a quiz for a lesson
-- `!progress [@user]` - Check learning progress
-- `!achievements` - View earned badges and achievements
-- `!leaderboard` - See top learners in the server
-- `!help_cyber` - Get help with bot commands
+### 📚 Learning Commands
+- `/start` - Begin your cybersecurity learning journey
+- `/lesson [course] [module] [lesson]` - View lessons with **⏸️ Stop & Save** functionality
+- `/courses` - Browse all available courses and select your path
+- `/quiz [course] [module] [lesson]` - Take interactive quizzes with **⏸️ Stop & Save**
+- `/ctf [difficulty]` - Access CTF challenges with **⏸️ Stop & Save**
+- `/multimedia [type]` - View professional cybersecurity content with **⏸️ Stop & Save**
 
-### Admin Commands (Admin Only)
-- `!admin_stats` - View server statistics
-- `!admin_reset_user <user>` - Reset a user's progress
-- `!admin_add_xp <user> <amount>` - Add XP to a user
-- `!admin_courses` - Manage course content
+### 🔄 Session Management
+- `/sessions` - **NEW!** View and manage all your saved training sessions
+  - Resume any paused lesson, quiz, CTF, or multimedia session
+  - Delete old sessions you no longer need
+  - See detailed progress information
+
+### 📊 Progress & Social
+- `/progress [@user]` - Check learning progress and statistics
+- `/achievements` - View earned badges and achievements
+- `/leaderboard` - See top learners in the server
+- `/help` - Get comprehensive help with all bot commands
+
+### 🛠️ Admin Commands (Admin Only)
+- `/admin_stats` - View detailed server statistics
+- `/admin_reset_user <user>` - Reset a user's progress
+- `/admin_add_xp <user> <amount>` - Add XP to a user
+- `/admin_courses` - Manage course content and structure
+
+### 🎮 Interactive Features
+All training commands now include:
+- **⏸️ Stop & Save buttons** - Pause anytime and resume later
+- **Smart navigation** - Seamless progression through content
+- **Progress indicators** - Visual feedback on your learning journey
+- **Session persistence** - Never lose your progress
 
 ## 🗄️ Database
 
@@ -134,6 +183,10 @@ The bot uses SQLite for data storage with the following tables:
 - **course_progress**: Detailed lesson completion tracking
 - **achievements**: User achievement records
 - **quiz_attempts**: Quiz performance history
+- **training_sessions**: **NEW!** Session management for stop/resume functionality
+  - Stores paused lesson, quiz, CTF, and multimedia sessions
+  - Enables seamless resume functionality across bot restarts
+  - Tracks session metadata and progress details
 
 ## 🔧 Configuration
 
@@ -169,16 +222,20 @@ The bot tracks various metrics:
 ### Project Structure
 ```
 Discord_Cyber_Bot/
-├── bot.py              # Main bot file
-├── database.py         # Database management
-├── courses.py          # Course content and structure
-├── achievements.py     # Achievement system
-├── quiz.py            # Quiz functionality
-├── admin.py           # Admin commands
-├── requirements.txt   # Python dependencies
-├── .env.example      # Environment template
-├── .gitignore        # Git ignore rules
-└── README.md         # This file
+├── bot.py                 # Main bot file with slash commands
+├── database.py            # Database management with session support
+├── courses.py             # Course content and structure
+├── achievements.py        # Achievement system
+├── quiz.py               # Interactive quiz functionality
+├── ctf.py                # CTF challenge system
+├── multimedia.py         # Professional multimedia content
+├── training_session.py   # NEW! Session management system
+├── admin.py              # Admin commands and management
+├── requirements.txt      # Python dependencies
+├── .env.example         # Environment template
+├── .gitignore           # Git ignore rules
+├── academy.db           # SQLite database (auto-created)
+└── README.md            # This file
 ```
 
 ### Adding New Content
@@ -187,13 +244,25 @@ Discord_Cyber_Bot/
 1. Edit `courses.py`
 2. Add course structure to `COURSES` dictionary
 3. Include lessons, quizzes, and exercises
-4. Test with `!courses` command
+4. Test with `/courses` command
 
 **Adding New Achievements:**
 1. Edit `achievements.py`
 2. Add achievement definition to `ACHIEVEMENTS`
 3. Implement trigger conditions
 4. Test achievement unlocking
+
+**Adding Multimedia Content:**
+1. Edit `multimedia.py`
+2. Add content to appropriate category in `MULTIMEDIA_CONTENT`
+3. Include title, description, URL, and metadata
+4. Test with `/multimedia` command
+
+**Adding CTF Challenges:**
+1. Edit `ctf.py`
+2. Add challenge to `CTF_CHALLENGES` dictionary
+3. Include flag, hints, and difficulty rating
+4. Test with `/ctf` command
 
 ### Contributing
 1. Fork the repository
@@ -251,4 +320,14 @@ If you need help or have questions:
 
 **Made with ❤️ for cybersecurity education**
 
-*Start your cybersecurity journey today with `!start`*
+*Start your cybersecurity journey today with `/start` and never lose your progress with our **⏸️ Stop & Resume** system!*
+
+## 🆕 Latest Updates
+
+### Version 2.0 - Comprehensive Learning Platform
+- ✅ **Stop/Resume Training Sessions** - Pause and resume anytime
+- ✅ **Professional Multimedia Content** - Real cybersecurity images and videos
+- ✅ **Modern Slash Commands** - Updated Discord interface
+- ✅ **CTF Challenge System** - Hands-on security challenges
+- ✅ **Session Management Dashboard** - Track all your saved progress
+- ✅ **Enhanced Database** - Persistent session storage
