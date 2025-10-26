@@ -8,11 +8,19 @@ from discord.ext import commands
 from discord.ui import Button, View
 import os
 import asyncio
+import logging
 from datetime import datetime
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Setup logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger("cyberbot")
 
 # Import our custom modules
 from database import db
@@ -24,14 +32,14 @@ from ctf import ctf_manager, CTFChallengeView
 from multimedia import multimedia_manager
 from training_session import training_session_manager, StopResumeView
 
-# Bot configuration
-PREFIX = "!"
-GUILD_ID = 1394809146036977795  # Replace with your server ID
+# Bot configuration from environment variables
+BOT_PREFIX = os.getenv("BOT_PREFIX", "!")
+GUILD_ID = os.getenv("GUILD_ID")  # Optional, can be None
 
 # Bot setup
 intents = discord.Intents.default()
 intents.message_content = True
-bot = commands.Bot(command_prefix=PREFIX, intents=intents)
+bot = commands.Bot(command_prefix=BOT_PREFIX, intents=intents)
 
 class CourseSelectionView(View):
     def __init__(self, user_id: int):
@@ -41,8 +49,11 @@ class CourseSelectionView(View):
         # Add course selection buttons
         courses = get_course_list()
         for course in courses[:5]:  # Limit to 5 courses to avoid button limit
+            # Only append "..." if title is longer than 20 characters
+            title = course['title']
+            label = f"{title[:20]}..." if len(title) > 20 else title
             button = Button(
-                label=f"{course['title'][:20]}...",
+                label=label,
                 style=discord.ButtonStyle.primary,
                 custom_id=f"course_{course['id']}"
             )
@@ -297,8 +308,10 @@ class LessonView(View):
                         inline=False
                     )
                 await interaction.user.send(embed=dm_embed)
-            except:
-                pass  # User might have DMs disabled
+            except discord.errors.Forbidden:
+                logger.debug(f"Could not send DM to user {interaction.user.id} - DMs disabled")
+            except Exception as e:
+                logger.exception(f"Error sending achievement DM to user {interaction.user.id}: {e}")
     
     @discord.ui.button(label="❓ Take Quiz", style=discord.ButtonStyle.primary)
     async def take_quiz(self, interaction: discord.Interaction, button: Button):
@@ -346,15 +359,15 @@ class LessonView(View):
 
 @bot.event
 async def on_ready():
-    print(f"✅ {bot.user} is online and ready to teach cybersecurity!")
-    print(f"📚 Loaded courses: {len(get_course_list())}")
+    logger.info(f"✅ {bot.user} is online and ready to teach cybersecurity!")
+    logger.info(f"📚 Loaded courses: {len(get_course_list())}")
     
     # Sync slash commands (optional)
     try:
         synced = await bot.tree.sync()
-        print(f"🔄 Synced {len(synced)} slash commands")
+        logger.info(f"🔄 Synced {len(synced)} slash commands")
     except Exception as e:
-        print(f"❌ Failed to sync commands: {e}")
+        logger.exception(f"❌ Failed to sync commands: {e}")
 
 @bot.tree.command(name="start", description="🚀 Start your cybersecurity learning journey!")
 async def start_journey(interaction: discord.Interaction):
@@ -508,10 +521,18 @@ async def show_lesson(ctx_or_followup, course_id: int, module_id: int, lesson_id
             user_id = ctx_or_followup.author.id
         else:
             # This shouldn't happen, but fallback
+            logger.warning("show_lesson called without user_id and couldn't determine it from context")
             return
     
-    # Add user to database
-    db.add_user(user_id, "User")  # We'll update the name later if needed
+    # Get user object if available from context to get display name
+    display_name = "User"
+    if hasattr(ctx_or_followup, 'user'):
+        display_name = ctx_or_followup.user.display_name
+    elif hasattr(ctx_or_followup, 'author'):
+        display_name = ctx_or_followup.author.display_name
+    
+    # Add user to database with proper display name
+    db.add_user(user_id, display_name)
     
     # Get lesson and course data
     lesson = get_lesson(course_id, module_id, lesson_id)
@@ -1062,7 +1083,7 @@ async def on_command_error(ctx, error):
         await ctx.send(embed=embed)
     
     else:
-        print(f"Unhandled error: {error}")
+        logger.exception(f"Unhandled error: {error}")
         embed = discord.Embed(
             title="❌ Error",
             description="An unexpected error occurred. Please try again later.",
@@ -1076,16 +1097,16 @@ if __name__ == "__main__":
     TOKEN = os.getenv("DISCORD_BOT_TOKEN")
     
     if not TOKEN:
-        print("❌ Error: DISCORD_BOT_TOKEN environment variable not set!")
-        print("Please create a .env file with your bot token or set the environment variable.")
+        logger.error("❌ Error: DISCORD_BOT_TOKEN environment variable not set!")
+        logger.error("Please create a .env file with your bot token or set the environment variable.")
         exit(1)
     
-    print("🔄 Starting Discord bot...")
-    print(f"🤖 Bot configured with prefix: {PREFIX}")
+    logger.info("🔄 Starting Discord bot...")
+    logger.info(f"🤖 Bot configured with prefix: {BOT_PREFIX}")
     
     try:
         bot.run(TOKEN)
     except discord.LoginFailure:
-        print("❌ Error: Invalid bot token! Please check your .env file.")
+        logger.error("❌ Error: Invalid bot token! Please check your .env file.")
     except Exception as e:
-        print(f"❌ Error starting bot: {e}")
+        logger.exception(f"❌ Error starting bot: {e}")
