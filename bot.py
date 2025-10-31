@@ -31,10 +31,14 @@ from admin import AdminCommands
 from ctf import ctf_manager, CTFChallengeView
 from multimedia import multimedia_manager
 from training_session import training_session_manager, StopResumeView
+from missions import missions_manager
+from microlearning import send_daily_tip
+from personalization import recommend_next, set_track, get_track
 
 # Bot configuration from environment variables
 BOT_PREFIX = os.getenv("BOT_PREFIX", "!")
 GUILD_ID = os.getenv("GUILD_ID")  # Optional, can be None
+ANNOUNCE_CHANNEL_ID = os.getenv("ANNOUNCE_CHANNEL_ID")
 
 # Bot setup
 intents = discord.Intents.default()
@@ -308,6 +312,19 @@ class LessonView(View):
                         inline=False
                     )
                 await interaction.user.send(embed=dm_embed)
+                # Optional public announcement
+                if ANNOUNCE_CHANNEL_ID:
+                    try:
+                        channel = bot.get_channel(int(ANNOUNCE_CHANNEL_ID))
+                        if channel:
+                            public = discord.Embed(
+                                title="🎉 Achievement Unlocked!",
+                                description=f"{interaction.user.mention} earned **{', '.join([a['name'] for a in new_achievements])}**",
+                                color=0xFFD700,
+                            )
+                            await channel.send(embed=public)
+                    except Exception:
+                        pass
             except discord.errors.Forbidden:
                 logger.debug(f"Could not send DM to user {interaction.user.id} - DMs disabled")
             except Exception as e:
@@ -845,6 +862,12 @@ async def help_command(interaction: discord.Interaction):
         value="`/ctf` - CTF challenges (500+ XP required)\n`/ctf_leaderboard` - CTF rankings\n`/multimedia [type]` - Interactive content\n`/xp_gates` - View feature unlock requirements",
         inline=False
     )
+
+    embed.add_field(
+        name="🧠 Research-backed Features",
+        value="`/daily` - Get a daily micro‑tip\n`/mission start` - Story-driven scenario\n`/recommend` - Personalized next step\n`/track [beginner|student|small_business]` - Set your learning track",
+        inline=False
+    )
     
     embed.add_field(
         name="🎬 Multimedia Content",
@@ -949,6 +972,57 @@ async def ctf_command(interaction: discord.Interaction, challenge_id: int = None
         )
         
         await interaction.response.send_message(embed=embed)
+
+@bot.tree.command(name="daily", description="💡 Get a daily 1–2 minute cyber tip")
+async def daily_tip(interaction: discord.Interaction, user: discord.Member = None):
+    target = user or interaction.user
+    db.add_user(target.id, target.display_name)
+    await interaction.response.send_message("💡 Sending your daily tip...", ephemeral=True)
+    await send_daily_tip(interaction.followup, target.id)
+
+@bot.tree.command(name="mission", description="🕵️ Start or resume a story-driven mission")
+async def mission_command(interaction: discord.Interaction, action: str = "start", code: str = "phish_alice_1"):
+    user_id = interaction.user.id
+    db.add_user(user_id, interaction.user.display_name)
+    if action == "resume":
+        from training_session import training_session_manager
+        pos, _, _ = training_session_manager.load_session(user_id, 'mission')
+        if pos and pos.get('mission_code'):
+            code = pos['mission_code']
+            step_index = pos.get('step_index', 0)
+            from missions import get_mission_step, create_mission_step_embed
+            step = get_mission_step(code, step_index)
+            embed, view = create_mission_step_embed(user_id, code, step_index, step)
+            await interaction.response.send_message(embed=embed, view=view)
+            return
+        await interaction.response.send_message("❌ No saved mission found. Starting a new one...", ephemeral=True)
+    embed, view = missions_manager.start_mission(user_id, code)
+    await interaction.response.send_message(embed=embed, view=view)
+
+@bot.tree.command(name="recommend", description="✨ Get a personalized next step")
+async def recommend_command(interaction: discord.Interaction):
+    user_id = interaction.user.id
+    db.add_user(user_id, interaction.user.display_name)
+    course_id, module_id, lesson_id, why = recommend_next(user_id)
+    embed = discord.Embed(
+        title="✨ Personalized Recommendation",
+        description=f"{why}\nTry Course {course_id} • Module {module_id} • Lesson {lesson_id}",
+        color=0x8A2BE2,
+    )
+    embed.add_field(name="Quick Start", value=f"Use `/lesson {course_id} {module_id} {lesson_id}`", inline=False)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
+@bot.tree.command(name="track", description="🧭 Set your learning track")
+async def track_command(interaction: discord.Interaction, track: str = "beginner"):
+    user_id = interaction.user.id
+    db.add_user(user_id, interaction.user.display_name)
+    set_track(user_id, track)
+    embed = discord.Embed(
+        title="🧭 Track Updated",
+        description=f"Your track is now **{get_track(user_id)}**",
+        color=0x00AAFF,
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="ctf_leaderboard", description="🏆 View CTF challenge leaderboard")
 async def ctf_leaderboard_command(interaction: discord.Interaction):

@@ -101,6 +101,22 @@ class QuizView(View):
                         value=achievement_text,
                         inline=False
                     )
+                    # Optional public announcement
+                    try:
+                        import os
+                        from bot import bot
+                        channel_id = os.getenv("ANNOUNCE_CHANNEL_ID")
+                        if channel_id:
+                            channel = bot.get_channel(int(channel_id))
+                            if channel:
+                                public = discord.Embed(
+                                    title="🎉 Achievement Unlocked!",
+                                    description=f"<@{self.user_id}> earned **{', '.join([a['name'] for a in new_achievements])}**",
+                                    color=0xFFD700,
+                                )
+                                await channel.send(embed=public)
+                    except Exception:
+                        pass
             else:
                 embed = discord.Embed(
                     title="❌ Incorrect",
@@ -359,6 +375,22 @@ class MultiQuizView(View):
                 value=achievement_text,
                 inline=False
             )
+            # Optional public announcement
+            try:
+                import os
+                from bot import bot
+                channel_id = os.getenv("ANNOUNCE_CHANNEL_ID")
+                if channel_id:
+                    channel = bot.get_channel(int(channel_id))
+                    if channel:
+                        public = discord.Embed(
+                            title="🎉 Achievement Unlocked!",
+                            description=f"<@{self.user_id}> earned **{', '.join([a['name'] for a in new_achievements])}**",
+                            color=0xFFD700,
+                        )
+                        await channel.send(embed=public)
+            except Exception:
+                pass
         
         # Add navigation buttons
         self.add_navigation_buttons()

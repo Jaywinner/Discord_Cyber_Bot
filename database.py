@@ -128,6 +128,98 @@ class DatabaseManager:
                 FOREIGN KEY (user_id) REFERENCES users (user_id)
             )
         """)
+
+        # Daily tips log (micro-learning and spaced repetition)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS tips_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                topic TEXT,
+                tip_id TEXT,
+                delivered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                reaction TEXT,
+                FOREIGN KEY (user_id) REFERENCES users (user_id)
+            )
+        """)
+
+        # User streaks (reinforce positive behavior)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_streaks (
+                user_id INTEGER PRIMARY KEY,
+                current_streak INTEGER DEFAULT 0,
+                longest_streak INTEGER DEFAULT 0,
+                last_activity_date DATE
+            )
+        """)
+
+        # Missions (story-driven scenarios)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS missions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT UNIQUE,
+                title TEXT,
+                narrative TEXT,
+                learning_outcomes TEXT,
+                min_xp INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS mission_steps (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                mission_code TEXT,
+                step_index INTEGER,
+                prompt TEXT,
+                options_json TEXT, -- [{label, next_step, correct, consequence, xp}]
+                UNIQUE(mission_code, step_index)
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS mission_progress (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                mission_code TEXT,
+                current_step INTEGER,
+                status TEXT DEFAULT 'in_progress', -- in_progress|completed|failed
+                started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users (user_id)
+            )
+        """)
+
+        # Personalization tracks and recommendations
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_tracks (
+                user_id INTEGER PRIMARY KEY,
+                track TEXT DEFAULT 'beginner' -- beginner|student|small_business
+            )
+        """)
+
+        # Metrics for adaptation
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_metrics (
+                user_id INTEGER PRIMARY KEY,
+                quiz_attempts INTEGER DEFAULT 0,
+                avg_quiz_pct REAL DEFAULT 0,
+                last_7_avg REAL DEFAULT 0,
+                improvement REAL DEFAULT 0
+            )
+        """)
+
+        # Community goals (collaborative targets)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS community_goals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                code TEXT UNIQUE,
+                title TEXT,
+                target INTEGER,
+                progress INTEGER DEFAULT 0,
+                period TEXT DEFAULT 'weekly', -- weekly|monthly
+                resets_at TIMESTAMP
+            )
+        """)
         
         conn.commit()
         conn.close()
@@ -272,6 +364,36 @@ class DatabaseManager:
                 UPDATE users SET current_course = ?, current_module = ?, current_lesson = ?
                 WHERE user_id = ?
             """, (course_id, module_id, lesson_id + 1, user_id))
+
+            # Update user streaks (daily)
+            cursor.execute("""
+                SELECT current_streak, longest_streak, last_activity_date FROM user_streaks WHERE user_id = ?
+            """, (user_id,))
+            row = cursor.fetchone()
+            today = datetime.date.today()
+            new_current = 1
+            new_longest = 1
+            if row:
+                current_streak, longest_streak, last_activity_date = row
+                if last_activity_date:
+                    last_date = datetime.datetime.strptime(last_activity_date, "%Y-%m-%d").date() if isinstance(last_activity_date, str) else last_activity_date
+                    delta = (today - last_date).days
+                    if delta == 1:
+                        new_current = (current_streak or 0) + 1
+                    elif delta == 0:
+                        new_current = current_streak or 1
+                    else:
+                        new_current = 1
+                new_longest = max(longest_streak or 0, new_current)
+                cursor.execute("""
+                    UPDATE user_streaks SET current_streak = ?, longest_streak = ?, last_activity_date = ?
+                    WHERE user_id = ?
+                """, (new_current, new_longest, today, user_id))
+            else:
+                cursor.execute("""
+                    INSERT INTO user_streaks (user_id, current_streak, longest_streak, last_activity_date)
+                    VALUES (?, 1, 1, ?)
+                """, (user_id, today))
             
             conn.commit()
         except Exception as e:
@@ -370,9 +492,92 @@ class DatabaseManager:
                 (user_id, course_id, module_id, lesson_id, score, total_questions)
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (user_id, course_id, module_id, lesson_id, score, total_questions))
+
+            # Update user_metrics aggregates for adaptive difficulty
+            cursor.execute("""
+                SELECT COUNT(*), AVG(CAST(score AS FLOAT) / total_questions * 100)
+                FROM quiz_attempts WHERE user_id = ?
+            """, (user_id,))
+            total, avg_pct = cursor.fetchone()
+            cursor.execute("""
+                SELECT AVG(pct) FROM (
+                    SELECT (CAST(score AS FLOAT) / total_questions * 100) as pct
+                    FROM quiz_attempts WHERE user_id = ?
+                    ORDER BY attempt_date DESC LIMIT 7
+                )
+            """, (user_id,))
+            last7 = cursor.fetchone()[0] if cursor.fetchone() else None
+            improvement = (last7 - avg_pct) if (last7 is not None and avg_pct is not None) else 0
+            cursor.execute("""
+                INSERT INTO user_metrics (user_id, quiz_attempts, avg_quiz_pct, last_7_avg, improvement)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    quiz_attempts=excluded.quiz_attempts,
+                    avg_quiz_pct=excluded.avg_quiz_pct,
+                    last_7_avg=excluded.last_7_avg,
+                    improvement=excluded.improvement
+            """, (user_id, total or 0, avg_pct or 0, last7 or 0, improvement or 0))
             conn.commit()
         except Exception as e:
             print(f"Error recording quiz attempt: {e}")
+        finally:
+            conn.close()
+
+    # Tips and micro-learning
+    def log_tip_delivery(self, user_id: int, topic: str, tip_id: str, reaction: str = None):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                INSERT INTO tips_log (user_id, topic, tip_id, reaction)
+                VALUES (?, ?, ?, ?)
+            """, (user_id, topic, tip_id, reaction))
+            conn.commit()
+        except Exception as e:
+            print(f"Error logging tip: {e}")
+        finally:
+            conn.close()
+
+    def get_recent_topics_for_user(self, user_id: int, limit: int = 5):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                SELECT topic FROM tips_log WHERE user_id = ?
+                ORDER BY delivered_at DESC LIMIT ?
+            """, (user_id, limit))
+            return [r[0] for r in cursor.fetchall()]
+        except Exception as e:
+            print(f"Error fetching recent topics: {e}")
+            return []
+        finally:
+            conn.close()
+
+    # Tracks
+    def set_user_track(self, user_id: int, track: str):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("""
+                INSERT INTO user_tracks (user_id, track) VALUES (?, ?)
+                ON CONFLICT(user_id) DO UPDATE SET track = excluded.track
+            """, (user_id, track))
+            conn.commit()
+        except Exception as e:
+            print(f"Error setting track: {e}")
+        finally:
+            conn.close()
+
+    def get_user_track(self, user_id: int) -> str:
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT track FROM user_tracks WHERE user_id = ?", (user_id,))
+            row = cursor.fetchone()
+            return row[0] if row else 'beginner'
+        except Exception as e:
+            print(f"Error getting track: {e}")
+            return 'beginner'
         finally:
             conn.close()
     
